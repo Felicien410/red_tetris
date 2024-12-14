@@ -1,0 +1,33 @@
+{
+  "name": "red_tetris",
+  "version": "1.0.0",
+  "description": "Red Tetris est un projet de l'école 42 qui consiste à recréer Tetris en multijoueur, en temps réel, avec JavaScript, Vue.js et Socket.io. Il permet de développer des compétences en programmation web, gestion d'état et interactions utilisateur, tout en concevant une architecture extensible et performante pour une expérience fluide.",
+  "main": "index.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Felicien410/red_tetris.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Felicien410/red_tetris/issues"
+  },
+  "homepage": "https://github.com/Felicien410/red_tetris#readme",
+  "dependencies": {
+    "express": "^4.21.2",
+    "nodemon": "^3.1.9",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@babel/preset-env": "^7.26.0",
+    "jest": "^29.7.0"
+  }
+}
