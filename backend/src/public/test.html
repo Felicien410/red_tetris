@@ -1,0 +1,54 @@
+<!-- test.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tetris Test</title>
+    <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
+</head>
+<body>
+    <div>
+        <input type="text" id="playerName" placeholder="Your name">
+        <input type="text" id="roomId" placeholder="Room ID">
+        <button onclick="joinRoom()">Join Room</button>
+    </div>
+    <div id="players"></div>
+
+    <script>
+        const socket = io('http://localhost:3000');
+        
+        socket.on('connect', () => {
+            console.log('Connected to server');
+        });
+
+        socket.on('room-update', (data) => {
+            console.log('Room update:', data);
+            displayPlayers(data.players);
+        });
+
+        socket.on('error', (error) => {
+            console.error('Server error:', error);
+            alert(error.message);
+        });
+
+        function joinRoom() {
+            const playerName = document.getElementById('playerName').value;
+            const roomId = document.getElementById('roomId').value;
+            
+            if (!playerName || !roomId) {
+                alert('Please enter both name and room ID');
+                return;
+            }
+
+            socket.emit('join-room', { roomId, playerName });
+        }
+
+        function displayPlayers(players) {
+            const playersDiv = document.getElementById('players');
+            playersDiv.innerHTML = '<h3>Players in room:</h3>' + 
+                players.map(p => `
+                    ${p.name} ${p.isLeader ? '(Leader)' : ''}
+                `).join('<br>');
+        }
+    </script>
+</body>
+</html>
