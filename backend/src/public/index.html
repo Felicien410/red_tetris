@@ -1,0 +1,60 @@
+<!-- backend/src/public/index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Red Tetris</title>
+    <script src="/socket.io/socket.io.js"></script>
+</head>
+<body>
+    <div id="gameInfo"></div>
+    <button id="startButton" style="display: none;">Start Game</button>
+
+    <script>
+        const socket = io();
+        const params = window.location.pathname.split('/').filter(Boolean);
+        const room = params[0];
+        const playerName = params[1];
+
+        if (!room || !playerName) {
+            document.getElementById('gameInfo').textContent = 'Invalid URL. Use format: /<room>/<player_name>';
+        } else {
+            // Initialiser le joueur avec les paramètres de l'URL
+            socket.emit('init-player', { room, playerName });
+        }
+
+        socket.on('room-update', (data) => {
+            console.log('Room update:', data);
+            const currentPlayer = data.players.find(p => p.id === socket.id);
+            const gameInfo = document.getElementById('gameInfo');
+            const startButton = document.getElementById('startButton');
+            
+            // Afficher les informations de la room
+            gameInfo.innerHTML = `
+                Room: ${data.room}<br>
+                Players: ${data.players.map(p => `${p.name}${p.isLeader ? ' (Leader)' : ''}`).join(', ')}<br>
+                Status: ${data.isPlaying ? 'In Game' : 'Waiting'}
+            `;
+
+            // Afficher le bouton Start uniquement pour le leader
+            if (currentPlayer?.isLeader && !data.isPlaying) {
+                startButton.style.display = 'block';
+            } else {
+                startButton.style.display = 'none';
+            }
+        });
+
+        socket.on('error', (error) => {
+            alert(error.message);
+        });
+
+        socket.on('game-started', (data) => {
+            console.log('Game started:', data);
+            document.getElementById('gameInfo').innerHTML += '<br>Game has started!';
+        });
+
+        document.getElementById('startButton').onclick = () => {
+            socket.emit('start-game', { room });
+        };
+    </script>
+</body>
+</html>
