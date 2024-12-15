@@ -60,7 +60,7 @@ class SocketService {
   async handleMovePiece(socket, { roomId, moveType }) {
     try {
       // TODO: Implémenter la logique de mouvement des pièces
-      // Cette partie sera développée quand nous implémenterons la logique du jeu
+      // Cette partie sera développée quand on va implementer la logique du jeu
       console.log(`Mouvement ${moveType} reçu du joueur ${socket.id}`);
       
     } catch (error) {
