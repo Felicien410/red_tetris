@@ -1,5 +1,8 @@
 // src/services/gameService.js
 const { REDIS_KEYS, MAX_PLAYERS } = require('../config/constants');
+const Game = require('../classes/Game');
+console.log('Game importé avec succès:', Game);
+
 
 class GameService {
   constructor(redisClient) {

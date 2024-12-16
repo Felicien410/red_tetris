@@ -4,45 +4,44 @@ const { REDIS_KEYS } = require('../config/constants');
 
 class GameLogicService {
   constructor(redisClient) {
-    // Nous avons besoin du client Redis pour maintenir l'état du jeu
-    this.redisClient = redisClient;
-    // Map pour stocker les instances de jeu actives en mémoire
-    this.games = new Map();
+      this.redisClient = redisClient;
+      this.games = new Map();
   }
 
-  // Crée une nouvelle instance de jeu pour une room donnée
-  async createGame(roomId) {
-    const game = new Game(roomId);
-    this.games.set(roomId, game);
-    
-    // Sauvegarde l'état initial dans Redis
-    await this.saveGameState(roomId, game.getState());
-    return game;
+    async createGame(roomId) {
+      console.log('Création d\'un nouveau jeu pour la room:', roomId);
+      const game = new Game(roomId);
+      game.start();
+      this.games.set(roomId, game); // On garde le jeu en mémoire
+      return game;
   }
+
 
   // Récupère l'instance de jeu, la crée si elle n'existe pas
   async getGame(roomId) {
-    if (!this.games.has(roomId)) {
-      // Tente de charger l'état depuis Redis
-      const savedState = await this.loadGameState(roomId);
-      if (savedState) {
-        const game = new Game(roomId);
-        Object.assign(game, savedState);
-        this.games.set(roomId, game);
-      } else {
-        // Crée un nouveau jeu si aucun état n'est trouvé
-        return await this.createGame(roomId);
-      }
+    let game = this.games.get(roomId);
+    if (!game) {
+        const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
+        const gameData = await this.redisClient.hGetAll(roomKey);
+        if (gameData && gameData.gameState) {
+            game = new Game(roomId);
+            game.loadState(JSON.parse(gameData.gameState));
+            this.games.set(roomId, game);
+        }
     }
-    return this.games.get(roomId);
-  }
+    return game;
+}
 
   // Sauvegarde l'état du jeu dans Redis
   async saveGameState(roomId, gameState) {
-    const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
-    await this.redisClient.hSet(roomKey, 'gameState', JSON.stringify(gameState));
+      try {
+          const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
+          await this.redisClient.hSet(roomKey, 'gameState', JSON.stringify(gameState));
+          console.log('État du jeu sauvegardé:', gameState);
+      } catch (error) {
+          console.error('Erreur lors de la sauvegarde de l\'état:', error);
+      }
   }
-
   // Charge l'état du jeu depuis Redis
   async loadGameState(roomId) {
     const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
@@ -51,77 +50,48 @@ class GameLogicService {
   }
 
   // Gère le mouvement d'une pièce
-  async handleMove(roomId, direction) {
-    const game = await this.getGame(roomId);
-    if (!game || !game.isPlaying) return null;
+    async handleMove(roomId, direction) {
+      try {
+          const game = this.games.get(roomId);
+          if (!game) {
+              console.error('Jeu non trouvé pour la room:', roomId);
+              return null;
+          }
 
-    const piece = game.currentPiece;
-    if (!piece) return null;
+          // On utilise directement le jeu en mémoire
+          const result = game.movePiece(direction);
+          return { gameState: game.getState() };
 
-    // Simule le mouvement avec un fantôme de la pièce
-    const ghostPiece = {
-      ...piece,
-      position: { ...piece.position }
-    };
-
-    // Calcule la nouvelle position selon la direction
-    switch (direction) {
-      case 'left':
-        ghostPiece.position.x -= 1;
-        break;
-      case 'right':
-        ghostPiece.position.x += 1;
-        break;
-      case 'down':
-        ghostPiece.position.y += 1;
-        break;
-    }
-
-    // Vérifie si le mouvement est valide
-    if (!this.checkCollision(game, ghostPiece)) {
-      piece.position = ghostPiece.position;
-      const newState = this.updateGameState(game);
-      await this.saveGameState(roomId, newState);
-      return newState;
-    }
-
-    // Gestion spéciale pour le mouvement vers le bas
-    if (direction === 'down') {
-      // Verrouille la pièce et génère la suivante
-      this.lockPiece(game);
-      const linesCleared = this.clearLines(game);
-      this.spawnNextPiece(game);
-      
-      const newState = this.updateGameState(game, linesCleared);
-      await this.saveGameState(roomId, newState);
-      return newState;
-    }
-
-    return null;
+      } catch (error) {
+          console.error('Erreur dans handleMove:', error);
+          return null;
+      }
   }
+
+    async saveGameState(roomId, gameState) {
+        const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
+        await this.redisClient.hSet(roomKey, 'gameState', JSON.stringify(gameState));
+    }
 
   // Gère la rotation d'une pièce
+
   async handleRotation(roomId) {
-    const game = await this.getGame(roomId);
-    if (!game || !game.isPlaying) return null;
+    try {
+        const game = this.games.get(roomId);
+        if (!game) {
+            console.error('Jeu non trouvé pour la room:', roomId);
+            return null;
+        }
 
-    const piece = game.currentPiece;
-    if (!piece) return null;
+        game.rotate();
+        return { gameState: game.getState() };
 
-    const ghostPiece = {
-      ...piece,
-      matrix: this.rotatePieceMatrix(piece.matrix)
-    };
-
-    if (!this.checkCollision(game, ghostPiece)) {
-      piece.matrix = ghostPiece.matrix;
-      const newState = this.updateGameState(game);
-      await this.saveGameState(roomId, newState);
-      return newState;
+    } catch (error) {
+        console.error('Erreur dans handleRotation:', error);
+        return null;
     }
+}
 
-    return null;
-  }
 
   // Vérifie les collisions d'une pièce avec le plateau ou les bordures
   checkCollision(game, piece) {

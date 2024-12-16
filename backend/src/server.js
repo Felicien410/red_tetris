@@ -27,7 +27,35 @@ class TetrisServer {
     this.connectedSockets = new Map();
     this.gameService = new GameService(this.redisClient);
     this.gameLogicService = new GameLogicService(this.redisClient);
+    this.gameIntervals = new Map(); // Pour gérer les intervalles de jeu
     this.setupServer();
+  }
+
+  startGameLoop(roomId) {
+    console.log('Démarrage de la boucle de jeu pour la room:', roomId);
+    const interval = setInterval(async () => {
+      try {
+        const gameUpdate = await this.gameLogicService.handleMove(roomId, 'down');
+        if (gameUpdate) {
+          this.io.to(roomId).emit('game-update', gameUpdate);
+        }
+      } catch (error) {
+        console.error('Erreur dans la boucle de jeu:', error);
+        clearInterval(interval);
+        this.gameIntervals.delete(roomId);
+      }
+    }, 1000); // Descente toutes les secondes
+
+    this.gameIntervals.set(roomId, interval);
+  }
+
+  stopGameLoop(roomId) {
+    const interval = this.gameIntervals.get(roomId);
+    if (interval) {
+      clearInterval(interval);
+      this.gameIntervals.delete(roomId);
+      console.log('Boucle de jeu arrêtée pour la room:', roomId);
+    }
   }
 
   async setupServer() {
@@ -165,7 +193,6 @@ class TetrisServer {
           // Vérifions si la room existe
           const roomExists = await this.redisClient.exists(roomKey);
           if (!roomExists) {
-            // Création de la room si elle n'existe pas
             console.log('Création d\'une nouvelle room:', room);
             await this.gameService.createGame(room, {
               id: socket.id,
@@ -173,11 +200,9 @@ class TetrisServer {
             });
           }
       
-          // Récupération ou mise à jour des données de la room
           roomData = await this.redisClient.hGetAll(roomKey);
           let players = JSON.parse(roomData.players || '[]');
       
-          // Mise à jour ou ajout du joueur
           const playerIndex = players.findIndex(p => p.name === pseudo);
           if (playerIndex !== -1) {
             players[playerIndex].id = socket.id;
@@ -189,14 +214,11 @@ class TetrisServer {
             });
           }
       
-          // Sauvegarde des changements
           await this.redisClient.hSet(roomKey, 'players', JSON.stringify(players));
       
-          // Connexion à la room socket.io
           socket.join(room);
           socket.roomId = room;
       
-          // Notification des joueurs
           this.io.to(room).emit('room-update', {
             room,
             players,
@@ -214,11 +236,11 @@ class TetrisServer {
           socket.emit('error', { message: error.message });
         }
       });
-      // Gestion du démarrage de partie
+
       socket.on('start-game', async (data) => {
         try {
           console.log('Tentative de démarrage de la partie:', data);
-          const roomId = data.room || data.roomId; // On accepte les deux formats
+          const roomId = data.room || data.roomId;
           
           if (!roomId) {
             console.log('Room ID manquant dans la requête:', data);
@@ -228,14 +250,12 @@ class TetrisServer {
           const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
           console.log('Recherche de la room:', roomKey);
           
-          // Le reste du code reste identique
           const roomExists = await this.redisClient.exists(roomKey);
           if (!roomExists) {
             console.log('Room introuvable dans Redis:', roomKey);
             throw new Error('Room not found - Please try reconnecting');
           }
 
-          // Récupérons les données de la room
           const roomData = await this.redisClient.hGetAll(roomKey);
           console.log('Données de la room trouvées:', roomData);
 
@@ -247,14 +267,12 @@ class TetrisServer {
           const players = JSON.parse(roomData.players);
           console.log('Joueurs dans la room:', players);
 
-          // Vérifions que le joueur qui démarre est bien dans la room
           const currentPlayer = players.find(p => p.id === socket.id);
           if (!currentPlayer) {
             console.log('Joueur non trouvé dans la room');
             throw new Error('Player not found in room');
           }
 
-          // Vérifions que le joueur est bien le leader
           if (!currentPlayer.isLeader) {
             console.log('Le joueur n\'est pas leader');
             throw new Error('Seul le leader peut démarrer la partie');
@@ -262,17 +280,18 @@ class TetrisServer {
 
           console.log('Démarrage de la partie autorisé pour le leader:', currentPlayer.name);
 
-          // Si tout est bon, on démarre la partie
           const gameState = await this.gameService.startGame(roomId);
           await this.gameLogicService.createGame(roomId);
 
-          // On notifie tous les joueurs
           this.io.to(roomId).emit('game-started', gameState);
           this.io.to(roomId).emit('room-update', {
             room: roomId,
             players: players,
             isPlaying: true
           });
+
+          // Démarrer la boucle de jeu
+          this.startGameLoop(roomId);
 
           console.log('Partie démarrée avec succès dans la room:', roomId);
 
@@ -285,17 +304,16 @@ class TetrisServer {
         }
       });
 
-      // Gestion des déconnexions
       socket.on('disconnect', async () => {
         console.log('Disconnection:', socket.id);
         this.connectedSockets.delete(socket.id);
 
         if (socket.roomId) {
+          this.stopGameLoop(socket.roomId); // Arrêter la boucle de jeu
           await this.cleanupRoom(socket.roomId, socket.id);
         }
       });
 
-      // Gestion des événements de jeu
       socket.on('move-piece', async (data) => {
         if (socket.roomId) {
           const gameUpdate = await this.gameLogicService.handleMove(socket.roomId, data.direction);
@@ -327,6 +345,7 @@ class TetrisServer {
 
         if (players.length === 0) {
           await this.redisClient.del(roomKey);
+          this.stopGameLoop(roomId);
         } else {
           if (!players.some(p => p.isLeader)) {
             players[0].isLeader = true;

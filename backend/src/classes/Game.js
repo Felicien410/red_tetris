@@ -18,6 +18,8 @@ class Game {
     this.gameOver = false;
   }
 
+
+
   // Démarre une nouvelle partie
   start() {
     this.reset();
@@ -28,15 +30,17 @@ class Game {
   }
 
   generateFirstPiece() {
+    console.log('Génération de la première pièce');
     const types = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
     const randomType = types[Math.floor(Math.random() * types.length)];
     
-    // On crée une nouvelle pièce avec une position initiale spécifique
     this.currentPiece = new Piece(randomType);
     this.currentPiece.position = {
-      x: Math.floor(BOARD.WIDTH / 2) - 1,  // Centre de la pièce
-      y: 0                                 // Haut du plateau
+        x: Math.floor(BOARD.WIDTH / 2) - 1,
+        y: 0
     };
+    
+    console.log('Nouvelle pièce générée:', this.currentPiece);
     return this;
   }
 
@@ -91,38 +95,46 @@ class Game {
     if (!this.currentPiece || !this.isPlaying || this.isPaused) return false;
 
     const movements = {
-      left: { x: -1, y: 0 },
-      right: { x: 1, y: 0 },
-      down: { x: 0, y: 1 }
+        left: { x: -1, y: 0 },
+        right: { x: 1, y: 0 },
+        down: { x: 0, y: 1 }
     };
 
     const move = movements[direction];
     if (!move) return false;
 
+    // Sauvegarde de la position actuelle
+    const oldX = this.currentPiece.position.x;
+    const oldY = this.currentPiece.position.y;
+
     // Teste le mouvement
-    const newPosition = {
-      x: this.currentPiece.position.x + move.x,
-      y: this.currentPiece.position.y + move.y
-    };
+    this.currentPiece.position.x += move.x;
+    this.currentPiece.position.y += move.y;
 
-    const ghostPiece = { ...this.currentPiece, position: newPosition };
-    
-    if (!this.checkCollision(ghostPiece)) {
-      this.currentPiece.position = newPosition;
-      return true;
+    // Vérifie la collision
+    if (this.checkCollision(this.currentPiece)) {
+        // Annule le mouvement
+        this.currentPiece.position.x = oldX;
+        this.currentPiece.position.y = oldY;
+
+        // Si c'était un mouvement vers le bas qui a causé la collision
+        if (direction === 'down') {
+            this.lockPiece();
+            const linesCleared = this.clearLines();
+            const spawnSuccess = this.spawnPiece();
+            
+            if (!spawnSuccess) {
+                this.gameOver = true;
+                this.isPlaying = false;
+            }
+            
+            return { locked: true, linesCleared };
+        }
+        return false;
     }
 
-    // Si collision vers le bas, verrouille la pièce
-    if (direction === 'down') {
-      this.lockPiece();
-      const linesCleared = this.clearLines();
-      this.spawnPiece();
-      return { locked: true, linesCleared };
-    }
-
-    return false;
-  }
-
+    return true;
+}
   // Fait tourner la pièce courante
   rotatePiece() {
     if (!this.currentPiece || !this.isPlaying || this.isPaused) return false;
@@ -150,26 +162,30 @@ class Game {
 
   // Vérifie les collisions d'une pièce
   checkCollision(piece) {
-    const shape = piece.getShape();
+    if (!piece || !piece.shape) {
+        console.error('Pièce invalide dans checkCollision:', piece);
+        return true;
+    }
+
+    const shape = Array.isArray(piece.shape) ? piece.shape : piece.getShape();
     const pos = piece.position;
 
     for (let y = 0; y < shape.length; y++) {
-      for (let x = 0; x < shape[y].length; x++) {
-        if (shape[y][x]) {
-          const boardX = pos.x + x;
-          const boardY = pos.y + y;
+        for (let x = 0; x < shape[y].length; x++) {
+            if (shape[y][x]) {
+                const boardX = pos.x + x;
+                const boardY = pos.y + y;
 
-          // Vérifie les limites du plateau et les collisions
-          if (boardX < 0 || boardX >= BOARD.WIDTH || 
-              boardY >= BOARD.HEIGHT ||
-              (boardY >= 0 && this.board[boardY][boardX])) {
-            return true;
-          }
+                if (boardX < 0 || boardX >= BOARD.WIDTH || 
+                    boardY >= BOARD.HEIGHT ||
+                    (boardY >= 0 && this.board[boardY][boardX])) {
+                    return true;
+                }
+            }
         }
-      }
     }
     return false;
-  }
+}
 
   // Verrouille une pièce sur le plateau
   lockPiece() {
@@ -246,12 +262,37 @@ class Game {
     };
   }
 
+
   // Bascule l'état de pause
   togglePause() {
     if (this.isPlaying && !this.gameOver) {
       this.isPaused = !this.isPaused;
     }
     return this.isPaused;
+  }
+
+
+  movePieceDown() {
+    return this.movePiece('down');
+}
+
+  movePieceLeft() {
+    return this.movePiece('left');
+  }
+
+  movePieceRight() {
+    return this.movePiece('right');
+  }
+
+  // Méthode pour la rotation
+  rotate() {
+    return this.rotatePiece();
+  }
+
+  // Méthode pour obtenir le type de la prochaine pièce
+  getRandomPieceType() {
+    const types = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
+    return types[Math.floor(Math.random() * types.length)];
   }
 }
 
