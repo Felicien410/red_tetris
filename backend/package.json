@@ -23,5 +23,24 @@
     "jest": "^27.4.7",
     "@babel/core": "^7.16.7",
     "@babel/preset-env": "^7.16.8"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coverageThreshold": {
+      "global": {
+        "statements": 70,
+        "branches": 50,
+        "functions": 70,
+        "lines": 70
+      }
+    },
+    "testMatch": [
+      "**/tests/**/*_test.js"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/server.js",
+      "!**/node_modules/**"
+    ]
   }
 }

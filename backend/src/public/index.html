@@ -122,6 +122,26 @@
         socket.on('error', (error) => {
             updateStatus(`Erreur: ${error.message}`);
         });
+
+
+        document.getElementById('startGameBtn').addEventListener('click', function() {
+            if (isLeader) {
+                // Émettre un événement au serveur pour démarrer la partie
+                socket.emit('start-game', { room: room });
+                updateStatus('Démarrage de la partie...');
+            }
+        });
+
+        // Ajoutez aussi ces écouteurs d'événements pour gérer les réponses du serveur
+        socket.on('game-started', (data) => {
+            updateStatus('La partie a commencé!');
+            // Ici vous pourrez ajouter le code pour initialiser l'interface du jeu
+        });
+
+        socket.on('game-update', (data) => {
+            // Ici vous pourrez mettre à jour l'état du jeu (plateau, score, etc.)
+            updateStatus(`Mise à jour du jeu reçue`);
+        });
     </script>
 </body>
 </html>
