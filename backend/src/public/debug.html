@@ -48,6 +48,15 @@
             margin-top: 10px;
             border: 1px solid #ddd;
         }
+
+        .piece-I { background-color: cyan; }
+        .piece-O { background-color: yellow; }
+        .piece-T { background-color: purple; }
+        .piece-S { background-color: green; }
+        .piece-Z { background-color: red; }
+        .piece-J { background-color: blue; }
+        .piece-L { background-color: orange; }
+
     </style>
 </head>
 <body>
@@ -117,16 +126,47 @@
         function updateBoard(gameState) {
             if (!gameState || !gameState.board) return;
             
+            // D'abord, affichons le plateau de base
             gameState.board.forEach((row, i) => {
                 row.forEach((cell, j) => {
                     const cellElement = document.getElementById(`cell-${i}-${j}`);
-                    cellElement.className = `cell ${cell !== 0 ? 'filled' : ''}`;
+                    // Si la cellule contient une pièce, appliquons le style correspondant
+                    if (cell !== 0) {
+                        cellElement.className = `cell piece-${cell}`;
+                    } else {
+                        cellElement.className = 'cell';
+                    }
                 });
             });
 
-            // Mise à jour de l'état affiché
+            // Si nous avons une pièce courante, affichons-la
+            if (gameState.currentPiece) {
+                const piece = gameState.currentPiece;
+                const pos = piece.position;
+                
+                // Supposons que nous avons une matrice 4x4 maximum pour chaque pièce
+                for (let y = 0; y < 4; y++) {
+                    for (let x = 0; x < 4; x++) {
+                        // Calculons la position sur le plateau
+                        const boardY = pos.y + y;
+                        const boardX = pos.x + x;
+                        
+                        // Vérifions que nous sommes dans les limites du plateau
+                        if (boardY >= 0 && boardY < 20 && boardX >= 0 && boardX < 10) {
+                            const cellElement = document.getElementById(`cell-${boardY}-${boardX}`);
+                            // Appliquons le style de la pièce courante
+                            cellElement.className = `cell piece-${piece.type}`;
+                        }
+                    }
+                }
+            }
+
+            // Affichons l'état complet du jeu dans le panneau de debug
             document.getElementById('gameState').textContent = 
                 JSON.stringify(gameState, null, 2);
+                
+            // Log de l'événement
+            logEvent('Plateau mis à jour');
         }
 
         // Actions du jeu
@@ -174,8 +214,12 @@
         });
 
         socket.on('game-started', (data) => {
-            logEvent('La partie commence!');
-            updateBoard(data);
+        logEvent('La partie commence!');
+        logEvent(`État initial: ${JSON.stringify(data)}`);
+        updateBoard(data);
+        
+        // Ajoutons un indicateur visuel que le jeu a commencé
+        document.querySelector('.debug-panel').style.backgroundColor = '#e8f5e9';
         });
 
         socket.on('game-update', (data) => {
