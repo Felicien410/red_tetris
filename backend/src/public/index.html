@@ -1,60 +1,127 @@
-<!-- backend/src/public/index.html -->
 <!DOCTYPE html>
 <html>
 <head>
     <title>Red Tetris</title>
     <script src="/socket.io/socket.io.js"></script>
+    <style>
+        .game-info {
+            margin: 20px;
+        }
+        .hidden {
+            display: none;
+        }
+        .players-list {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 5px;
+        }
+        .leader {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+    </style>
 </head>
 <body>
-    <div id="gameInfo"></div>
-    <button id="startButton" style="display: none;">Start Game</button>
+    <div id="gameSection" class="game-info">
+        <h2>Room: <span id="currentRoom"></span></h2>
+        <div id="roomInfo">
+            <p>Votre pseudo: <span id="currentPlayer"></span></p>
+            <div class="players-list">
+                <h3>Joueurs connectés:</h3>
+                <div id="playersList"></div>
+            </div>
+            <div id="gameControls">
+                <button id="startGameBtn" class="hidden">Démarrer la partie</button>
+            </div>
+        </div>
+        <div id="status"></div>
+    </div>
 
     <script>
         const socket = io();
-        const params = window.location.pathname.split('/').filter(Boolean);
-        const room = params[0];
-        const playerName = params[1];
+        let isLeader = false;
+
+        // Récupérer room et player_name depuis l'URL
+        const pathParts = window.location.pathname.split('/').filter(Boolean);
+        const room = pathParts[0];
+        const playerName = pathParts[1];
 
         if (!room || !playerName) {
-            document.getElementById('gameInfo').textContent = 'Invalid URL. Use format: /<room>/<player_name>';
-        } else {
-            // Initialiser le joueur avec les paramètres de l'URL
-            socket.emit('init-player', { room, playerName });
+            document.body.innerHTML = `
+                <div style="margin: 20px; color: red;">
+                    <h2>URL invalide</h2>
+                    <p>Format correct: http://serveur:port/[room]/[pseudo]</p>
+                    <p>Exemple: http://localhost:3000/room1/joueur1</p>
+                </div>
+            `;
+        }
+        
+        function updateStatus(message) {
+            document.getElementById('status').innerHTML += `<p>${message}</p>`;
         }
 
-        socket.on('room-update', (data) => {
-            console.log('Room update:', data);
-            const currentPlayer = data.players.find(p => p.id === socket.id);
-            const gameInfo = document.getElementById('gameInfo');
-            const startButton = document.getElementById('startButton');
-            
-            // Afficher les informations de la room
-            gameInfo.innerHTML = `
-                Room: ${data.room}<br>
-                Players: ${data.players.map(p => `${p.name}${p.isLeader ? ' (Leader)' : ''}`).join(', ')}<br>
-                Status: ${data.isPlaying ? 'In Game' : 'Waiting'}
-            `;
+        function updatePlayersList(players) {
+            const playersDiv = document.getElementById('playersList');
+            playersDiv.innerHTML = players.map(player => 
+                `<div class="${player.isLeader ? 'leader' : ''}">
+                    ${player.name} ${player.isLeader ? '(Leader)' : ''}
+                </div>`
+            ).join('');
 
-            // Afficher le bouton Start uniquement pour le leader
-            if (currentPlayer?.isLeader && !data.isPlaying) {
-                startButton.style.display = 'block';
+            const startButton = document.getElementById('startGameBtn');
+            if (isLeader) {
+                startButton.classList.remove('hidden');
             } else {
-                startButton.style.display = 'none';
+                startButton.classList.add('hidden');
+            }
+        }
+
+        socket.on('connect', async () => {
+            updateStatus('Connecté au serveur');
+            
+            // Une fois connecté, on initialise la room/joueur
+            if (room && playerName) {
+                try {
+                    // Créer/joindre la room
+                    const response = await fetch(`/${room}/${playerName}`, {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    
+                    // Initialiser le socket
+                    socket.emit('init-player', {
+                        pseudo: playerName,
+                        room: room
+                    });
+                } catch (error) {
+                    updateStatus(`Erreur: ${error}`);
+                }
             }
         });
 
+        socket.on('room-update', (data) => {
+            updatePlayersList(data.players);
+            const currentPlayerId = socket.id;
+            const currentPlayer = data.players.find(p => p.id === currentPlayerId);
+            if (currentPlayer) {
+                isLeader = currentPlayer.isLeader;
+            }
+        });
+
+        socket.on('joined-room', (data) => {
+            document.getElementById('currentRoom').textContent = data.room;
+            document.getElementById('currentPlayer').textContent = 
+                data.players.find(p => p.id === data.playerId).name;
+            
+            updatePlayersList(data.players);
+            const currentPlayer = data.players.find(p => p.id === data.playerId);
+            isLeader = currentPlayer.isLeader;
+        });
+
         socket.on('error', (error) => {
-            alert(error.message);
+            updateStatus(`Erreur: ${error.message}`);
         });
-
-        socket.on('game-started', (data) => {
-            console.log('Game started:', data);
-            document.getElementById('gameInfo').innerHTML += '<br>Game has started!';
-        });
-
-        document.getElementById('startButton').onclick = () => {
-            socket.emit('start-game', { room });
-        };
     </script>
 </body>
 </html>

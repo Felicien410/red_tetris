@@ -1,61 +1,79 @@
+// backend/src/server.js
 const express = require('express');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const { createClient } = require('redis');
-const { REDIS_KEYS } = require('./config/constants');
+const { REDIS_KEYS, MAX_PLAYERS } = require('./config/constants');
 const path = require('path');
 
-/**
- * Classe principale gérant le serveur Express, le serveur HTTP et le serveur Socket.io.
- * Elle s'occupe également de la connexion à Redis et de la configuration initiale.
- */
 class TetrisServer {
   constructor() {
-    // Initialisation de l'application Express, du serveur HTTP et du serveur Socket.io
     this.app = express();
     this.httpServer = createServer(this.app);
     this.io = new Server(this.httpServer, {
       cors: { origin: "*", methods: ["GET", "POST"] }
     });
     this.redisClient = createClient();
+    this.connectedSockets = new Map();
     this.setupServer();
   }
 
-  /**
-   * Fonction d'initialisation asynchrone du serveur.
-   * - Connexion à Redis
-   * - Ajout de middlewares
-   * - Définition des routes nécessaires
-   * - Gestion des événements Socket.io
-   */
   async setupServer() {
     await this.redisClient.connect();
     console.log('Redis connected');
 
-    // Middleware pour pouvoir lire le JSON dans les requêtes HTTP
+    await this.cleanupAllRooms();
+
+    // Middleware
     this.app.use(express.json());
-
-    /**
-     * Servir les fichiers statiques du dossier public
-     * Cela permettra de servir index.html, et éventuellement les assets
-     */
     this.app.use(express.static(path.join(__dirname, 'public')));
+    
+    // Configuration des en-têtes de sécurité
+    this.app.use((req, res, next) => {
+      res.setHeader(
+        'Content-Security-Policy',
+        "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self';"
+      );
+      next();
+    });
 
-    /**
-     * Route GET pour /:room/:player_name
-     * Elle renvoie toujours le fichier index.html, qui contiendra la logique front-end 
-     * pour gérer la room et le player.
-     */
+    // Route de debug Redis
+    this.app.get('/debug/redis', async (req, res) => {
+      try {
+        console.log("Accessing debug route");
+        const games = {};
+        
+        const gameKeys = await this.redisClient.keys(`${REDIS_KEYS.GAME_PREFIX}*`);
+        console.log("Game keys found:", gameKeys);
+
+        for (const key of gameKeys) {
+          const data = await this.redisClient.hGetAll(key);
+          games[key] = {
+            players: JSON.parse(data.players || '[]'),
+            isPlaying: data.isPlaying === 'true',
+            raw: data // données brutes pour le debug
+          };
+        }
+        
+        const response = {
+          totalGames: gameKeys.length,
+          games: games,
+          timestamp: new Date().toISOString()
+        };
+
+        res.json(response);
+      } catch (error) {
+        console.error("Debug route error:", error);
+        res.status(500).json({ error: error.message });
+      }
+    });
+
+    // Route GET pour servir l'application
     this.app.get('/:room/:player_name', (req, res) => {
       res.sendFile(path.join(__dirname, 'public', 'index.html'));
     });
 
-    /**
-     * Route POST /:room/:player_name
-     * Permet de créer une nouvelle room avec un joueur "leader".
-     * Le joueur n'a pas encore de socket.id car il n'est pas connecté via Socket.io.
-     * Le front utilisera cette route pour réserver/initialiser une room.
-     */
+    // Route POST pour créer/rejoindre une room
     this.app.post('/:room/:player_name', async (req, res) => {
       const { room, player_name } = req.params;
 
@@ -63,174 +81,154 @@ class TetrisServer {
         const roomKey = `${REDIS_KEYS.GAME_PREFIX}${room}`;
         const roomExists = await this.redisClient.exists(roomKey);
 
+        let players = [];
         if (roomExists) {
-          return res.status(400).json({ error: 'Room already exists' });
+          const roomData = await this.redisClient.hGetAll(roomKey);
+          players = JSON.parse(roomData.players);
+
+          // Nettoyer les joueurs déconnectés
+          players = players.filter(p => {
+            const isConnected = this.connectedSockets.has(p.id);
+            return !p.id || isConnected;
+          });
+
+          if (players.length >= MAX_PLAYERS) {
+            return res.status(400).json({ error: 'Room is full (max 2 players)' });
+          }
+
+          if (players.some(p => p.name === player_name)) {
+            return res.status(400).json({ error: 'Player name already exists in this room' });
+          }
         }
 
-        // Le leader n'a pas encore d'ID socket, il sera mis à jour lors de sa connexion socket.
-        const players = [{
+        const newPlayer = {
           id: null,
           name: player_name,
-          isLeader: true
-        }];
+          isLeader: players.length === 0
+        };
+        players.push(newPlayer);
 
-        // Initialisation de la room dans Redis
         await this.redisClient.hSet(roomKey, {
           players: JSON.stringify(players),
           isPlaying: 'false'
         });
 
-        // Retour des informations de la room
         res.json({ room, players, isPlaying: false });
       } catch (error) {
-        console.error('Error creating room:', error);
+        console.error('Error:', error);
         res.status(500).json({ error: 'Internal Server Error' });
       }
     });
 
-    /**
-     * Événement déclenché lorsqu'un nouveau client se connecte par Socket.io.
-     * Ici, on écoute 'connection' pour chaque nouveau socket.
-     */
     this.io.on('connection', (socket) => {
       console.log('New connection:', socket.id);
+      this.connectedSockets.set(socket.id, socket);
 
-      /**
-       * Événement "init-player" émis par le client juste après la connexion Socket.io.
-       * Le client enverra `{ pseudo, room, sid }`.
-       * - pseudo: le nom du joueur
-       * - room: la room qu'il souhaite rejoindre
-       * - sid: identifiant optionnel envoyé par le front (si nécessaire)
-       * 
-       * Cette fonction va:
-       *  - Vérifier l'existence de la room dans Redis
-       *  - Ajouter le joueur à la room, ou mettre à jour son ID s'il existe déjà
-       *  - Rejoindre la room socket.io
-       *  - Diffuser la mise à jour à tous les joueurs de la room
-       */
       socket.on('init-player', async (data) => {
         try {
-          const { pseudo, room, sid } = data;
-          console.log(`Nouveau joueur: ${pseudo}, SID: ${sid}, demande pour room: ${room}`);
+          const { pseudo, room } = data;
+          console.log(`Joueur ${pseudo} rejoint room ${room}`);
 
           const roomKey = `${REDIS_KEYS.GAME_PREFIX}${room}`;
           const roomExists = await this.redisClient.exists(roomKey);
+          
           if (!roomExists) {
-            // La room doit être créée via la route POST, sinon on renvoie une erreur
-            socket.emit('error', { message: 'Room does not exist. Create it via POST route first.' });
+            socket.emit('error', { message: 'Room does not exist' });
             return;
           }
 
-          // Récupération des données de la room
           const roomData = await this.redisClient.hGetAll(roomKey);
-          const players = JSON.parse(roomData.players);
+          let players = JSON.parse(roomData.players);
 
-          // Vérifie si le pseudo existe déjà parmi les joueurs
-          let player = players.find(p => p.name === pseudo);
-
-          if (!player) {
-            // Si le joueur n'existe pas encore dans la room, on l'ajoute
-            // Le premier joueur sera le leader, sinon c'est un joueur normal
-            player = { id: socket.id, name: pseudo, isLeader: players.length === 0 };
-            players.push(player);
-          } else {
-            // Le joueur existe déjà (créé lors de la route POST), on met à jour son id
-            player.id = socket.id;
+          const playerIndex = players.findIndex(p => p.name === pseudo);
+          if (playerIndex !== -1) {
+            const oldId = players[playerIndex].id;
+            if (oldId && this.connectedSockets.has(oldId)) {
+              const oldSocket = this.connectedSockets.get(oldId);
+              oldSocket.disconnect();
+              this.connectedSockets.delete(oldId);
+            }
+            players[playerIndex].id = socket.id;
           }
 
-          // Mise à jour des joueurs dans Redis
           await this.redisClient.hSet(roomKey, 'players', JSON.stringify(players));
 
-          // Le joueur rejoint la room socket.io
           socket.join(room);
+          socket.roomId = room;
 
-          // Diffuse la mise à jour de la room à tous les joueurs
           this.io.to(room).emit('room-update', {
             room,
             players,
             isPlaying: roomData.isPlaying === 'true'
           });
 
-          // Confirme au joueur qu'il a bien rejoint
           socket.emit('joined-room', {
             room,
             playerId: socket.id,
             players
           });
+
         } catch (error) {
-          console.error('Erreur init-player:', error);
+          console.error('Error:', error);
           socket.emit('error', { message: error.message });
         }
       });
 
-      /**
-       * Événement de déconnexion du socket.
-       * Cette fonction :
-       *  - Récupère le player dans Redis grâce au socket.id (si stocké)
-       *  - Le retire de sa room
-       *  - S'il était leader, éventuellement réassigne un leader
-       *  - Si la room est vide après son départ, la supprime
-       *  - Diffuse la mise à jour aux autres joueurs
-       */
       socket.on('disconnect', async () => {
-        try {
-          // Dans ce code, nous supposons que vous stockez le playerKey ailleurs.
-          // Si ce n'est pas le cas, adaptez la logique pour retrouver la room du joueur.
-          const playerKey = `${REDIS_KEYS.PLAYER_PREFIX}${socket.id}`;
-          const playerData = await this.redisClient.hGetAll(playerKey);
+        console.log('Disconnection:', socket.id);
+        this.connectedSockets.delete(socket.id);
 
-          if (!playerData || !playerData.roomId) {
-            // On ne trouve pas le joueur, aucune action à faire
-            return;
-          }
-
-          const roomId = playerData.roomId;
-          const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
-          const roomData = await this.redisClient.hGetAll(roomKey);
-
-          if (roomData.players) {
-            let players = JSON.parse(roomData.players);
-
-            // Retire le joueur qui se déconnecte
-            players = players.filter(p => p.id !== socket.id);
-
-            if (players.length === 0) {
-              // Si plus personne dans la room, on la supprime
-              await this.redisClient.del(roomKey);
-            } else {
-              // Sinon, on met à jour la liste des joueurs
-              // Si plus de leader, on assigne le premier joueur comme leader
-              if (!players.some(p => p.isLeader) && players.length > 0) {
-                players[0].isLeader = true;
-              }
-
-              await this.redisClient.hSet(roomKey, 'players', JSON.stringify(players));
-
-              // Informe les joueurs restants
-              this.io.to(roomId).emit('room-update', {
-                room: roomId,
-                players,
-                isPlaying: roomData.isPlaying === 'true'
-              });
-            }
-          }
-
-          // Supprime le playerKey
-          await this.redisClient.del(playerKey);
-
-        } catch (error) {
-          console.error('Erreur déconnexion:', error);
+        if (socket.roomId) {
+          await this.cleanupRoom(socket.roomId, socket.id);
         }
       });
     });
 
-    // Démarrage du serveur HTTP sur le port spécifié ou 3000 par défaut
     const PORT = process.env.PORT || 3000;
     this.httpServer.listen(PORT, () => {
       console.log(`Server running on port ${PORT}`);
     });
   }
+
+  async cleanupRoom(roomId, socketId) {
+    try {
+      const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
+      const roomData = await this.redisClient.hGetAll(roomKey);
+
+      if (roomData.players) {
+        let players = JSON.parse(roomData.players);
+        players = players.filter(p => p.id !== socketId);
+
+        if (players.length === 0) {
+          await this.redisClient.del(roomKey);
+        } else {
+          if (!players.some(p => p.isLeader)) {
+            players[0].isLeader = true;
+          }
+          await this.redisClient.hSet(roomKey, 'players', JSON.stringify(players));
+          this.io.to(roomId).emit('room-update', {
+            room: roomId,
+            players,
+            isPlaying: roomData.isPlaying === 'true'
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error cleaning room:', error);
+    }
+  }
+
+  async cleanupAllRooms() {
+    try {
+      const keys = await this.redisClient.keys(`${REDIS_KEYS.GAME_PREFIX}*`);
+      for (const key of keys) {
+        await this.redisClient.del(key);
+      }
+      console.log('All rooms cleaned up');
+    } catch (error) {
+      console.error('Error cleaning all rooms:', error);
+    }
+  }
 }
 
-// Instanciation du serveur
 new TetrisServer();
