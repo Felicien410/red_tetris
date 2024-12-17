@@ -8,19 +8,32 @@ const { REDIS_KEYS } = require('./config/constants');
 class TetrisServer {
   constructor() {
     this.app = express();
+
+    //crée un serveur HTTP basé sur Express.
     this.httpServer = createServer(this.app);
+
+    //initialise un serveur WebSocket basé sur le serveur HTTP.
+    //autorise les requêtes de n'importe quelle origine et les méthodes GET et POST.
     this.io = new Server(this.httpServer, {
       cors: { origin: "*", methods: ["GET", "POST"] }
     });
+
+    //crée un client Redis pour stocker les données des joueurs et des parties. (pas encore connecté)
     this.redisClient = createClient();
+
+    //lance le serveur (connexion à Redis..)
     this.setupServer();
   }
 
+
   async setupServer() {
+
+    // Connexion à Redis
     await this.redisClient.connect();
     console.log('Redis connected');
 
     // Middleware
+    //pour que le serveur puisse traiter les requêtes JSON
     this.app.use(express.json());
 
     // Récupérer le prochain numéro de room disponible
@@ -33,6 +46,7 @@ class TetrisServer {
     // Gestion des sockets
     this.io.on('connection', (socket) => {
       console.log('New connection:', socket.id);
+
 
       // Connexion initiale du joueur
       socket.on('connect-player', async (data) => {
@@ -75,6 +89,8 @@ class TetrisServer {
           socket.emit('error', { message: error.message });
         }
       });
+
+
 
       // Rejoindre une room existante
       socket.on('join-room', async ({ roomId, playerName }) => {
