@@ -1,10 +1,8 @@
-// src/services/gameService.js
+// src/services/lobbyService.js
 const { REDIS_KEYS, MAX_PLAYERS } = require('../config/constants');
-const Game = require('../classes/Game');
-console.log('Game importé avec succès:', Game);
 
+class LobbyService {
 
-class GameService {
   constructor(redisClient) {
     this.redisClient = redisClient;
   }
@@ -37,7 +35,8 @@ class GameService {
     return { roomId, players };
   }
 
-  // Permet à un joueur de rejoindre une partie existante
+
+  /*Permet à un joueur de rejoindre une partie existante*/
   async joinGame(roomId, player) {
     const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
     const roomExists = await this.redisClient.exists(roomKey);
@@ -76,6 +75,7 @@ class GameService {
     
     return { roomId, players, isPlaying: false };
   }
+
 
   // Supprime un joueur d'une partie
   async removePlayer(roomId, playerId) {
@@ -132,4 +132,4 @@ class GameService {
   }
 }
 
-module.exports = GameService;
+module.exports = LobbyService;

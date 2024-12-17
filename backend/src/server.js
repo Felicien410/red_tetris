@@ -6,7 +6,7 @@ const { createClient } = require('redis');
 const { REDIS_KEYS, MAX_PLAYERS } = require('./config/constants');
 const path = require('path');
 const cors = require('cors');
-const GameService = require('./services/gameService');
+const LobbyService = require('./services/lobbyService');
 const GameLogicService = require('./services/gameLogicService');
 
 class TetrisServer {
@@ -25,7 +25,7 @@ class TetrisServer {
     // Initialisation des connexions et services
     this.redisClient = createClient();
     this.connectedSockets = new Map();
-    this.gameService = new GameService(this.redisClient);
+    this.LobbyService = new LobbyService(this.redisClient);
     this.gameLogicService = new GameLogicService(this.redisClient);
     this.gameIntervals = new Map(); // Pour gérer les intervalles de jeu
     this.setupServer();
@@ -194,7 +194,7 @@ class TetrisServer {
           const roomExists = await this.redisClient.exists(roomKey);
           if (!roomExists) {
             console.log('Création d\'une nouvelle room:', room);
-            await this.gameService.createRoom(room, {
+            await this.LobbyService.createRoom(room, {
               id: socket.id,
               name: pseudo
             });
