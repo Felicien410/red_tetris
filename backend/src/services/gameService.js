@@ -130,40 +130,6 @@ class GameService {
     const currentPlayer = gameState.players.find(p => p.id === playerId);
     return currentPlayer?.isLeader || false;
   }
-
-    // Démarre une nouvelle partie
-    async startGame(roomId) {
-      const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
-      const gameState = await this.getGameState(roomId);
-      
-      if (!gameState) {
-          throw new Error('Game not found');
-      }
-
-      if (gameState.isPlaying) {
-          throw new Error('Game already in progress');
-      }
-
-      // Création d'une nouvelle instance de jeu
-      const game = new Game(roomId);
-      game.start(); // Ceci va initialiser le jeu et générer la première pièce
-
-      // Obtenir l'état complet du jeu après initialisation
-      const initialGameState = game.getState();
-
-      // Mise à jour de l'état dans Redis
-      await this.redisClient.hSet(roomKey, {
-          isPlaying: 'true',
-          gameState: JSON.stringify(initialGameState)
-      });
-
-      return {
-          ...gameState,
-          isPlaying: true,
-          gameState: initialGameState
-      };
-  }
-
 }
 
 module.exports = GameService;

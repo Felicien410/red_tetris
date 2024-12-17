@@ -8,28 +8,23 @@ class GameLogicService {
       this.games = new Map();
   }
 
-    async createGame(roomId) {
-      console.log('Création d\'un nouveau jeu pour la room:', roomId);
-      const game = new Game(roomId);
-      game.start();
-      this.games.set(roomId, game); // On garde le jeu en mémoire
-      return game;
-  }
+  async createGame(roomId) {
+    console.log('Création d\'un nouveau jeu pour la room:', roomId);
+    const game = new Game(roomId);
+    this.games.set(roomId, game); 
+    game.start(); // Un seul appel à start()
+    
+    // Sauvegarder l'état initial
+    const initialState = game.getState();
+    await this.saveGameState(roomId, initialState);
+    
+    return { gameState: initialState };
+}
 
 
   // Récupère l'instance de jeu, la crée si elle n'existe pas
   async getGame(roomId) {
-    let game = this.games.get(roomId);
-    if (!game) {
-        const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
-        const gameData = await this.redisClient.hGetAll(roomKey);
-        if (gameData && gameData.gameState) {
-            game = new Game(roomId);
-            game.loadState(JSON.parse(gameData.gameState));
-            this.games.set(roomId, game);
-        }
-    }
-    return game;
+    return this.games.get(roomId);
 }
 
   // Sauvegarde l'état du jeu dans Redis
@@ -50,23 +45,24 @@ class GameLogicService {
   }
 
   // Gère le mouvement d'une pièce
-    async handleMove(roomId, direction) {
-      try {
-          const game = this.games.get(roomId);
-          if (!game) {
-              console.error('Jeu non trouvé pour la room:', roomId);
-              return null;
-          }
+  async handleMove(roomId, direction) {
+    try {
+        const game = this.games.get(roomId);
+        if (!game) {
+            console.error('Jeu non trouvé pour la room:', roomId);
+            return null;
+        }
 
-          // On utilise directement le jeu en mémoire
-          const result = game.movePiece(direction);
-          return { gameState: game.getState() };
+        // Utiliser directement l'instance du jeu en mémoire sans recréer la pièce
+        const result = game.movePiece(direction);
+        return { gameState: game.getState() };
+    } catch (error) {
+        console.error('Erreur dans handleMove:', error);
+        return null;
+    }
+}
 
-      } catch (error) {
-          console.error('Erreur dans handleMove:', error);
-          return null;
-      }
-  }
+
 
     async saveGameState(roomId, gameState) {
         const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
@@ -211,16 +207,7 @@ class GameLogicService {
 
   // Retourne la matrice correspondant à chaque type de pièce
   getPieceMatrix(type) {
-    const pieces = {
-      'I': [[1, 1, 1, 1]],
-      'O': [[1, 1], [1, 1]],
-      'T': [[0, 1, 0], [1, 1, 1]],
-      'S': [[0, 1, 1], [1, 1, 0]],
-      'Z': [[1, 1, 0], [0, 1, 1]],
-      'J': [[1, 0, 0], [1, 1, 1]],
-      'L': [[0, 0, 1], [1, 1, 1]]
-    };
-    return pieces[type] || pieces['I'];
+    return PIECE_SHAPES[type] || PIECE_SHAPES['I'];
   }
 }
 

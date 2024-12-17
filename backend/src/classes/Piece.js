@@ -1,20 +1,8 @@
+const { PIECE_SHAPES } = require('../config/constants');
+
 class Piece {
-  // Définition statique des formes de pièces standard de Tetris
-  static SHAPES = {
-    I: [[1, 1, 1, 1]],
-    O: [[1, 1], 
-        [1, 1]],
-    T: [[0, 1, 0], 
-        [1, 1, 1]],
-    S: [[0, 1, 1], 
-        [1, 1, 0]],
-    Z: [[1, 1, 0], 
-        [0, 1, 1]],
-    J: [[1, 0, 0], 
-        [1, 1, 1]],
-    L: [[0, 0, 1], 
-        [1, 1, 1]]
-  };
+
+  static SHAPES = PIECE_SHAPES;
 
   constructor(type) {
     if (!Piece.SHAPES[type]) {
@@ -65,12 +53,12 @@ class Piece {
 
   // Retourne une copie de la pièce pour tester les mouvements
   getGhost() {
-      const ghostPiece = new Piece(this.type);
-      ghostPiece.shape = JSON.parse(JSON.stringify(this.shape));
-      ghostPiece.position = { ...this.position };
-      ghostPiece.rotation = this.rotation;
-      return ghostPiece;
-  }
+    const ghostPiece = new Piece(this.type);
+    ghostPiece.shape = JSON.parse(JSON.stringify(this.shape)); // Copie profonde de la shape
+    ghostPiece.position = { ...this.position };  // Copie de la position
+    ghostPiece.rotation = this.rotation;
+    return ghostPiece;
+}
 
   // Obtenir les coordonnées occupées par la pièce
   getCoordinates() {

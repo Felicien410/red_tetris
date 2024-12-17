@@ -4,7 +4,6 @@
     <title>Tetris Debug View</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        /* Styles pour une meilleure visualisation */
         .game-container {
             display: flex;
             padding: 20px;
@@ -57,47 +56,69 @@
         .piece-J { background-color: blue; }
         .piece-L { background-color: orange; }
 
+        .controls-group {
+            margin-top: 15px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .debug-info {
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin-top: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
     <div class="game-container">
-        <!-- Plateau de jeu -->
-        <div class="board" id="gameBoard">
-            <!-- Les cellules seront générées en JS -->
-        </div>
-
-        <!-- Panneau de debug -->
+        <div class="board" id="gameBoard"></div>
         <div class="debug-panel">
             <h3>Debug Controls</h3>
-            <div>
+            
+            <div class="controls-group">
+                <h4>Connection</h4>
                 <input type="text" id="playerName" placeholder="Player Name">
                 <input type="text" id="roomId" placeholder="Room ID">
                 <button onclick="joinGame()">Join Game</button>
             </div>
-            <div style="margin-top: 10px;">
+
+            <div class="controls-group">
+                <h4>Game Controls</h4>
                 <button onclick="startGame()">Start Game</button>
                 <button onclick="moveLeft()">←</button>
                 <button onclick="moveRight()">→</button>
                 <button onclick="moveDown()">↓</button>
                 <button onclick="rotate()">Rotate</button>
+                <button onclick="hardDrop()">Hard Drop</button>
             </div>
-            <div style="margin-top: 20px;">
-                <h4>État actuel:</h4>
-                <pre id="gameState">En attente de connexion...</pre>
+
+            <div class="controls-group">
+                <h4>Current Piece Info:</h4>
+                <div id="pieceInfo" class="debug-info">No piece info available</div>
             </div>
-            <div>
-                <h4>Log des événements:</h4>
+
+            <div class="controls-group">
+                <h4>Game State:</h4>
+                <pre id="gameState" class="debug-info">En attente de connexion...</pre>
+            </div>
+
+            <div class="controls-group">
+                <h4>Event Log:</h4>
                 <div id="eventLog" class="event-log"></div>
             </div>
         </div>
     </div>
 
     <script>
-        // Initialisation de la connexion socket
+        let currentPiece = null;
+        let firstUpdateReceived = false;
         const socket = io('http://localhost:3000');
         let currentRoom = '';
 
-        // Création du plateau de jeu vide
         function createEmptyBoard() {
             const board = document.getElementById('gameBoard');
             board.innerHTML = '';
@@ -114,67 +135,92 @@
             }
         }
 
-        // Fonction pour mettre à jour le log
         function logEvent(message) {
             const log = document.getElementById('eventLog');
             const entry = document.createElement('div');
             entry.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
             log.insertBefore(entry, log.firstChild);
+            console.log(message);
         }
 
-        // Fonction pour mettre à jour l'affichage du plateau
-        function updateBoard(gameState) {
-        if (!gameState || !gameState.gameState || !gameState.gameState.board) return;
-        
-        const board = gameState.gameState.board;
-        const currentPiece = gameState.gameState.currentPiece;
-        
-        // Mise à jour du plateau
-        board.forEach((row, i) => {
-            row.forEach((cell, j) => {
-                const cellElement = document.getElementById(`cell-${i}-${j}`);
-                if (cell !== 0) {
-                    cellElement.className = `cell piece-${cell}`;
-                } else {
-                    cellElement.className = 'cell';
-                }
-            });
-        });
+        function updatePieceInfo(piece) {
+            const pieceInfo = document.getElementById('pieceInfo');
+            if (piece) {
+                pieceInfo.textContent = JSON.stringify(piece, null, 2);
+            } else {
+                pieceInfo.textContent = "No piece info available";
+            }
+        }
 
-        // Affichage de la pièce courante
-        if (currentPiece) {
-            const pos = currentPiece.position;
-            const shape = currentPiece.shape;
-            
-            shape.forEach((row, y) => {
-                row.forEach((cell, x) => {
-                    if (cell) {
-                        const boardY = pos.y + y;
-                        const boardX = pos.x + x;
-                        if (boardY >= 0 && boardY < 20 && boardX >= 0 && boardX < 10) {
-                            const cellElement = document.getElementById(`cell-${boardY}-${boardX}`);
-                            cellElement.className = `cell piece-${currentPiece.type}`;
-                        }
+        function updateBoard(gameState) {
+            if (!gameState || !gameState.gameState || !gameState.gameState.board) {
+                console.error('Données de jeu invalides:', gameState);
+                return;
+            }
+
+            const board = gameState.gameState.board;
+            let currentPieceData = gameState.gameState.currentPiece;
+
+            // Conservation du type de la première pièce
+            if (currentPieceData && !firstUpdateReceived) {
+                if (currentPiece) {
+                    currentPieceData.type = currentPiece.type;
+                    currentPieceData.shape = currentPiece.shape;
+                }
+                firstUpdateReceived = true;
+            }
+
+            // Mise à jour de la pièce courante
+            currentPiece = currentPieceData;
+            updatePieceInfo(currentPiece);
+
+            // Mise à jour du plateau
+            board.forEach((row, i) => {
+                row.forEach((cell, j) => {
+                    const cellElement = document.getElementById(`cell-${i}-${j}`);
+                    if (cell !== 0) {
+                        cellElement.className = `cell piece-${cell}`;
+                    } else {
+                        cellElement.className = 'cell';
                     }
                 });
             });
+
+            // Affichage de la pièce courante
+            if (currentPiece) {
+                const pos = currentPiece.position;
+                const shape = currentPiece.shape;
+                
+                shape.forEach((row, y) => {
+                    row.forEach((cell, x) => {
+                        if (cell) {
+                            const boardY = pos.y + y;
+                            const boardX = pos.x + x;
+                            if (boardY >= 0 && boardY < 20 && boardX >= 0 && boardX < 10) {
+                                const cellElement = document.getElementById(`cell-${boardY}-${boardX}`);
+                                cellElement.className = `cell piece-${currentPiece.type}`;
+                            }
+                        }
+                    });
+                });
+            }
+
+            document.getElementById('gameState').textContent = JSON.stringify({
+                score: gameState.gameState.score,
+                level: gameState.gameState.level,
+                currentPiece: {
+                    type: currentPiece?.type,
+                    position: currentPiece?.position
+                }
+            }, null, 2);
         }
 
-        // Affichage simplifié de l'état du jeu
-        document.getElementById('gameState').textContent = JSON.stringify({
-            score: gameState.gameState.score,
-            level: gameState.gameState.level,
-            currentPiece: {
-                type: currentPiece?.type,
-                position: currentPiece?.position
-            }
-        }, null, 2);
-    }
-        // Actions du jeu
         function joinGame() {
             const playerName = document.getElementById('playerName').value;
             const roomId = document.getElementById('roomId').value;
             currentRoom = roomId;
+            firstUpdateReceived = false;
+            currentPiece = null;
 
             socket.emit('init-player', {
                 pseudo: playerName,
@@ -186,6 +232,7 @@
         function startGame() {
             socket.emit('start-game', { room: currentRoom });
             logEvent('Tentative de démarrage de la partie');
+            firstUpdateReceived = false;
         }
 
         function moveLeft() {
@@ -204,7 +251,10 @@
             socket.emit('rotate-piece', { roomId: currentRoom });
         }
 
-        // Écouteurs d'événements socket
+        function hardDrop() {
+            socket.emit('hard-drop', { roomId: currentRoom });
+        }
+
         socket.on('connect', () => {
             logEvent('Connecté au serveur');
             createEmptyBoard();
@@ -215,18 +265,17 @@
         });
 
         socket.on('game-started', (data) => {
-        logEvent('La partie commence!');
-        console.log('Pièce courante:', data.gameState.currentPiece);
-        updateBoard(data);
-        
-        // Ajoutons un indicateur visuel que le jeu a commencé
-        document.querySelector('.debug-panel').style.backgroundColor = '#e8f5e9';
+            logEvent('La partie commence!');
+            console.log('État initial:', data);
+            currentPiece = data.gameState.currentPiece;
+            firstUpdateReceived = false;
+            updateBoard(data);
+            document.querySelector('.debug-panel').style.backgroundColor = '#e8f5e9';
         });
 
         socket.on('game-update', (data) => {
-            logEvent('Mise à jour du jeu reçue');
-            console.log('Nouvelle mise à jour:', data);
-            console.log('Nouvelle position de la pièce:', data.gameState.currentPiece);
+            console.log('Mise à jour reçue:', data);
+            console.log('Type de la pièce actuelle:', currentPiece?.type);
             updateBoard(data);
         });
 

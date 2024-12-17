@@ -18,31 +18,13 @@ class Game {
     this.gameOver = false;
   }
 
-
-
-  // Démarre une nouvelle partie
   start() {
     this.reset();
     this.isPlaying = true;
-    this.generateFirstPiece();  // On génère la première pièce
-    this.generateNextPiece();   // Et la suivante
+    this.spawnPiece();  // On utilise spawnPiece pour la première pièce aussi
+    console.log('piece spawned');
     return this;
-  }
-
-  generateFirstPiece() {
-    console.log('Génération de la première pièce');
-    const types = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
-    const randomType = types[Math.floor(Math.random() * types.length)];
-    
-    this.currentPiece = new Piece(randomType);
-    this.currentPiece.position = {
-        x: Math.floor(BOARD.WIDTH / 2) - 1,
-        y: 0
-    };
-    
-    console.log('Nouvelle pièce générée:', this.currentPiece);
-    return this;
-  }
+}
 
   // Réinitialise l'état du jeu
   reset() {
@@ -61,34 +43,40 @@ class Game {
 
   // Génère la prochaine pièce aléatoirement
   generateNextPiece() {
+    console.log('Génération de la prochaine pièce');
     const types = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
     const randomType = types[Math.floor(Math.random() * types.length)];
+    // Create a new Piece instance for nextPiece
     this.nextPiece = new Piece(randomType);
     return this;
   }
 
   // Fait apparaître une nouvelle pièce sur le plateau
   spawnPiece() {
+    console.log('Apparition d\'une nouvelle pièce');
     if (!this.nextPiece) {
-      this.generateNextPiece();
+        this.generateNextPiece();
     }
-    this.currentPiece = this.nextPiece;
-    this.generateNextPiece();
     
-    // Position initiale de la pièce
+    // Create a new instance of Piece instead of just referencing nextPiece
+    this.currentPiece = new Piece(this.nextPiece.type);
     this.currentPiece.position = {
-      x: Math.floor(BOARD.WIDTH / 2) - 1,
-      y: 0
+        x: Math.floor(BOARD.WIDTH / 2) - 1,
+        y: 0
     };
+    
+    // Generate next piece after setting current piece
+    this.generateNextPiece();
     
     // Vérifie si la pièce peut être placée (game over si non)
     if (this.checkCollision(this.currentPiece)) {
-      this.gameOver = true;
-      this.isPlaying = false;
-      return false;
+        this.gameOver = true;
+        this.isPlaying = false;
+        return false;
     }
+    
     return true;
-  }
+}
 
   // Déplace la pièce courante
   movePiece(direction) {
@@ -103,22 +91,22 @@ class Game {
     const move = movements[direction];
     if (!move) return false;
 
-    // Sauvegarde de la position actuelle
+    // Sauvegarde l'ancienne position
     const oldX = this.currentPiece.position.x;
     const oldY = this.currentPiece.position.y;
 
-    // Teste le mouvement
+    // Applique le mouvement temporairement
     this.currentPiece.position.x += move.x;
     this.currentPiece.position.y += move.y;
 
     // Vérifie la collision
     if (this.checkCollision(this.currentPiece)) {
-        // Annule le mouvement
+        // Restaure l'ancienne position
         this.currentPiece.position.x = oldX;
         this.currentPiece.position.y = oldY;
 
-        // Si c'était un mouvement vers le bas qui a causé la collision
         if (direction === 'down') {
+            console.log('Verrouillage de la pièce');
             this.lockPiece();
             const linesCleared = this.clearLines();
             const spawnSuccess = this.spawnPiece();
@@ -134,7 +122,9 @@ class Game {
     }
 
     return true;
-}
+  }
+
+  
   // Fait tourner la pièce courante
   rotatePiece() {
     if (!this.currentPiece || !this.isPlaying || this.isPaused) return false;

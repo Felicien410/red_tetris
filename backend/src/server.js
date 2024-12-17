@@ -239,70 +239,74 @@ class TetrisServer {
 
       socket.on('start-game', async (data) => {
         try {
-          console.log('Tentative de démarrage de la partie:', data);
-          const roomId = data.room || data.roomId;
-          
-          if (!roomId) {
-            console.log('Room ID manquant dans la requête:', data);
-            throw new Error('Room ID is required');
-          }
-      
-          const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
-          console.log('Recherche de la room:', roomKey);
-          
-          const roomExists = await this.redisClient.exists(roomKey);
-          if (!roomExists) {
-            console.log('Room introuvable dans Redis:', roomKey);
-            throw new Error('Room not found - Please try reconnecting');
-          }
-
-          const roomData = await this.redisClient.hGetAll(roomKey);
-          console.log('Données de la room trouvées:', roomData);
-
-          if (!roomData || !roomData.players) {
-            console.log('Données de la room invalides');
-            throw new Error('Invalid room data');
-          }
-
-          const players = JSON.parse(roomData.players);
-          console.log('Joueurs dans la room:', players);
-
-          const currentPlayer = players.find(p => p.id === socket.id);
-          if (!currentPlayer) {
-            console.log('Joueur non trouvé dans la room');
-            throw new Error('Player not found in room');
-          }
-
-          if (!currentPlayer.isLeader) {
-            console.log('Le joueur n\'est pas leader');
-            throw new Error('Seul le leader peut démarrer la partie');
-          }
-
-          console.log('Démarrage de la partie autorisé pour le leader:', currentPlayer.name);
-
-          const gameState = await this.gameService.startGame(roomId);
-          await this.gameLogicService.createGame(roomId);
-
-          this.io.to(roomId).emit('game-started', gameState);
-          this.io.to(roomId).emit('room-update', {
-            room: roomId,
-            players: players,
-            isPlaying: true
-          });
-
-          // Démarrer la boucle de jeu
-          this.startGameLoop(roomId);
-
-          console.log('Partie démarrée avec succès dans la room:', roomId);
-
+            console.log('Tentative de démarrage de la partie:', data);
+            const roomId = data.room || data.roomId;
+            
+            if (!roomId) {
+                console.log('Room ID manquant dans la requête:', data);
+                throw new Error('Room ID is required');
+            }
+        
+            const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
+            console.log('Recherche de la room:', roomKey);
+            
+            const roomExists = await this.redisClient.exists(roomKey);
+            if (!roomExists) {
+                console.log('Room introuvable dans Redis:', roomKey);
+                throw new Error('Room not found - Please try reconnecting');
+            }
+    
+            const roomData = await this.redisClient.hGetAll(roomKey);
+            console.log('Données de la room trouvées:', roomData);
+    
+            if (!roomData || !roomData.players) {
+                console.log('Données de la room invalides');
+                throw new Error('Invalid room data');
+            }
+    
+            const players = JSON.parse(roomData.players);
+            console.log('Joueurs dans la room:', players);
+    
+            const currentPlayer = players.find(p => p.id === socket.id);
+            if (!currentPlayer) {
+                console.log('Joueur non trouvé dans la room');
+                throw new Error('Player not found in room');
+            }
+    
+            if (!currentPlayer.isLeader) {
+                console.log('Le joueur n\'est pas leader');
+                throw new Error('Seul le leader peut démarrer la partie');
+            }
+    
+            console.log('Démarrage de la partie autorisé pour le leader:', currentPlayer.name);
+    
+            // Création et démarrage du jeu en une seule fois
+            const gameState = await this.gameLogicService.createGame(roomId);
+    
+            // Mettre à jour l'état de la partie dans Redis
+            await this.redisClient.hSet(roomKey, 'isPlaying', 'true');
+    
+            // Envoyer les événements de démarrage
+            this.io.to(roomId).emit('game-started', gameState);
+            this.io.to(roomId).emit('room-update', {
+                room: roomId,
+                players: players,
+                isPlaying: true
+            });
+    
+            // Démarrer la boucle de jeu
+            this.startGameLoop(roomId);
+    
+            console.log('Partie démarrée avec succès dans la room:', roomId);
+    
         } catch (error) {
-          console.error('Erreur détaillée lors du démarrage:', error);
-          socket.emit('error', { 
-            message: error.message,
-            details: 'Erreur lors du démarrage de la partie'
-          });
+            console.error('Erreur détaillée lors du démarrage:', error);
+            socket.emit('error', { 
+                message: error.message,
+                details: 'Erreur lors du démarrage de la partie'
+            });
         }
-      });
+    });
 
       socket.on('disconnect', async () => {
         console.log('Disconnection:', socket.id);
