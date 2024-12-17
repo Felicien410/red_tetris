@@ -10,7 +10,7 @@ class GameService {
   }
 
   // Crée une nouvelle partie avec un leader initial
-  async createGame(roomId, leader) {
+  async createRoom(roomId, leader) {
     const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
     
     // Création de la structure initiale des joueurs avec le leader
@@ -44,7 +44,7 @@ class GameService {
     
     // Si la room n'existe pas, on en crée une nouvelle
     if (!roomExists) {
-      return await this.createGame(roomId, player);
+      return await this.createRoom(roomId, player);
     }
 
     const roomData = await this.redisClient.hGetAll(roomKey);

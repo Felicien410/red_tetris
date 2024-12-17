@@ -194,7 +194,7 @@ class TetrisServer {
           const roomExists = await this.redisClient.exists(roomKey);
           if (!roomExists) {
             console.log('Création d\'une nouvelle room:', room);
-            await this.gameService.createGame(room, {
+            await this.gameService.createRoom(room, {
               id: socket.id,
               name: pseudo
             });
