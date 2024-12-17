@@ -35,21 +35,6 @@ class Piece {
     return this;
   }
 
-  move(direction) {
-    const movements = {
-      left: { x: -1, y: 0 },
-      right: { x: 1, y: 0 },
-      down: { x: 0, y: 1 },
-    };
-
-    if (!movements[direction]) {
-      throw new Error(`Direction invalide: ${direction}`);
-    }
-
-    this.position.x += movements[direction].x;
-    this.position.y += movements[direction].y;
-    return this;
-  }
 
   // Retourne une copie de la pièce pour tester les mouvements
   getGhost() {

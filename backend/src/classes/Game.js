@@ -1,6 +1,6 @@
 // src/classes/Game.js
 const Piece = require('./Piece');
-const { BOARD, POINTS } = require('../config/constants');
+const { BOARD, POINTS, PIECE_TYPES } = require('../config/constants');
 
 class Game {
   // Initialisation du jeu avec les propriétés de base
@@ -44,7 +44,7 @@ class Game {
   // Génère la prochaine pièce aléatoirement
   generateNextPiece() {
     console.log('Génération de la prochaine pièce');
-    const types = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
+    const types = PIECE_TYPES ;
     const randomType = types[Math.floor(Math.random() * types.length)];
     // Create a new Piece instance for nextPiece
     this.nextPiece = new Piece(randomType);
@@ -104,11 +104,13 @@ class Game {
         // Restaure l'ancienne position
         this.currentPiece.position.x = oldX;
         this.currentPiece.position.y = oldY;
-
+        // Si c un mouvement vers le bas qui a causé la collision
         if (direction === 'down') {
             console.log('Verrouillage de la pièce');
             this.lockPiece();
+            // on verifie qu il n y a pas de lignes a effacer
             const linesCleared = this.clearLines();
+            // on fait apparaitre la prochaine piece
             const spawnSuccess = this.spawnPiece();
             
             if (!spawnSuccess) {
@@ -123,33 +125,36 @@ class Game {
 
     return true;
   }
-
   
   // Fait tourner la pièce courante
   rotatePiece() {
     if (!this.currentPiece || !this.isPlaying || this.isPaused) return false;
 
+    // Sauvegarde l'état original
+    const originalShape = this.currentPiece.getCurrentShape();
     const originalRotation = this.currentPiece.rotation;
+
+    // Utilise la méthode rotate de la classe Piece
     this.currentPiece.rotate();
 
     // Si la rotation cause une collision, essaie de décaler la pièce
     if (this.checkCollision(this.currentPiece)) {
-      // Essaie de décaler à gauche
-      this.currentPiece.position.x -= 1;
-      if (this.checkCollision(this.currentPiece)) {
-        // Essaie de décaler à droite
-        this.currentPiece.position.x += 2;
+        // Essaie de décaler à gauche
+        this.currentPiece.position.x -= 1;
         if (this.checkCollision(this.currentPiece)) {
-          // Si rien ne marche, annule la rotation
-          this.currentPiece.position.x -= 1;
-          this.currentPiece.rotation = originalRotation;
-          return false;
+            // Essaie de décaler à droite
+            this.currentPiece.position.x += 2;
+            if (this.checkCollision(this.currentPiece)) {
+                // Si rien ne marche, annule la rotation
+                this.currentPiece.position.x -= 1;
+                this.currentPiece.shape = originalShape;
+                this.currentPiece.rotation = originalRotation;
+                return false;
+            }
         }
-      }
     }
     return true;
-  }
-
+}
   // Vérifie les collisions d'une pièce
   checkCollision(piece) {
     if (!piece || !piece.shape) {
@@ -160,11 +165,19 @@ class Game {
     const shape = Array.isArray(piece.shape) ? piece.shape : piece.getShape();
     const pos = piece.position;
 
+    // Vérifie les collisions avec le plateau et les bordures
     for (let y = 0; y < shape.length; y++) {
+      // Vérifie chaque cellule de la pièce
         for (let x = 0; x < shape[y].length; x++) {
+          // Vérifie si la cellule est occupée
             if (shape[y][x]) {
                 const boardX = pos.x + x;
                 const boardY = pos.y + y;
+
+      // Conditions de collision :
+      // 1. La pièce dépasse le bord gauche (boardX < 0) ou droit (boardX >= BOARD.WIDTH)
+      // 2. La pièce dépasse le bas du plateau (boardY >= BOARD.HEIGHT)
+      // 3. La cellule du plateau à cette position est déjà occupée (this.board[boardY][boardX])       
 
                 if (boardX < 0 || boardX >= BOARD.WIDTH || 
                     boardY >= BOARD.HEIGHT ||
@@ -184,10 +197,17 @@ class Game {
 
     for (let y = 0; y < shape.length; y++) {
       for (let x = 0; x < shape[y].length; x++) {
+        //si cellul pleine alors on calcule la position correspondante sur le plateau global.
+        //On ajoute simplement la coordonnée locale (x, y) de la cellule à la position globale
+        // de la pièce (pos.x, pos.y) pour obtenir (boardX, boardY).
         if (shape[y][x]) {
+
           const boardY = pos.y + y;
           const boardX = pos.x + x;
           if (boardY >= 0) {
+          //Si la case de la pièce est occupée, on va poser le type de la pièce (this.currentPiece.type)
+          //dans la grille du plateau this.board au bon endroit 
+          //(this.board[boardY][boardX] = this.currentPiece.type;).
             this.board[boardY][boardX] = this.currentPiece.type;
           }
         }
@@ -199,9 +219,13 @@ class Game {
   // Vérifie et efface les lignes complètes
   clearLines() {
     let linesCleared = 0;
+    // iteration a partir du bas du tableau
     for (let row = BOARD.HEIGHT - 1; row >= 0; row--) {
+      //si chaque cellule == 1 alors on efface la ligne
       if (this.board[row].every(cell => cell !== 0)) {
+        //enlever la ligne
         this.board.splice(row, 1);
+        //creer une nouvelle ligne vide en haut
         this.board.unshift(Array(BOARD.WIDTH).fill(0));
         linesCleared++;
         row++; // Revérifie la même position
@@ -252,36 +276,9 @@ class Game {
     };
   }
 
-
-  // Bascule l'état de pause
-  togglePause() {
-    if (this.isPlaying && !this.gameOver) {
-      this.isPaused = !this.isPaused;
-    }
-    return this.isPaused;
-  }
-
-
-  movePieceDown() {
-    return this.movePiece('down');
-}
-
-  movePieceLeft() {
-    return this.movePiece('left');
-  }
-
-  movePieceRight() {
-    return this.movePiece('right');
-  }
-
-  // Méthode pour la rotation
-  rotate() {
-    return this.rotatePiece();
-  }
-
   // Méthode pour obtenir le type de la prochaine pièce
   getRandomPieceType() {
-    const types = ['I', 'O', 'T', 'S', 'Z', 'J', 'L'];
+    const types = PIECE_TYPES;
     return types[Math.floor(Math.random() * types.length)];
   }
 }

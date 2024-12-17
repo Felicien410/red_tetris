@@ -1,6 +1,6 @@
 // src/services/gameLogicService.js
 const Game = require('../classes/Game');
-const { REDIS_KEYS } = require('../config/constants');
+const { REDIS_KEYS,PIECE_TYPES, PIECE_SHAPES } = require('../config/constants');
 
 class GameLogicService {
   constructor(redisClient) {
@@ -71,21 +71,22 @@ class GameLogicService {
 
   // Gère la rotation d'une pièce
 
-  async handleRotation(roomId) {
-    try {
-        const game = this.games.get(roomId);
-        if (!game) {
-            console.error('Jeu non trouvé pour la room:', roomId);
-            return null;
-        }
+async handleRotation(roomId) {
+  try {
+      const game = this.games.get(roomId);
+      if (!game) {
+          console.error('Jeu non trouvé pour la room:', roomId);
+          return null;
+      }
 
-        game.rotate();
-        return { gameState: game.getState() };
+      // Changé de rotate() à rotatePiece()
+      game.rotatePiece();
+      return { gameState: game.getState() };
 
-    } catch (error) {
-        console.error('Erreur dans handleRotation:', error);
-        return null;
-    }
+  } catch (error) {
+      console.error('Erreur dans handleRotation:', error);
+      return null;
+  }
 }
 
 
@@ -203,12 +204,16 @@ class GameLogicService {
     }
     
     return rotated;
-  }
+  }POINTS
 
   // Retourne la matrice correspondant à chaque type de pièce
   getPieceMatrix(type) {
-    return PIECE_SHAPES[type] || PIECE_SHAPES['I'];
-  }
+    if (!PIECE_TYPES.includes(type)) {
+        console.error(`Type de pièce invalide: ${type}`);
+        return PIECE_SHAPES['I'];
+    }
+    return PIECE_SHAPES[type];
+}
 }
 
 module.exports = GameLogicService;
