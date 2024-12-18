@@ -10,6 +10,7 @@ class Player {
         this.isLeader = false;    // Indique si le joueur est le leader de la partie
         this.isPlaying = false;   // État actif/inactif du joueur
         this.socketId = null;     // Sera défini lors de la connexion
+        this.blocksPlaced = 0;    // Nombre de blocs placés sur le plateau
     }
 
     // Méthode pour mettre à jour le score du joueur
@@ -21,6 +22,7 @@ class Player {
     // Permet de définir l'ID de socket lors de la connexion
     setSocketId(socketId) {
         this.socketId = socketId;
+        this.id = socketId;  // On garde les deux pour la compatibilité
         return this;
     }
 
@@ -36,13 +38,22 @@ class Player {
         return this;
     }
 
+
+    //get the number of blocks placed
+    getBlocksPlaced() {
+        return this.blocksPlaced;
+    }
+
     // Retourne un objet avec les informations publiques du joueur
     toJSON() {
         return {
             name: this.name,
             score: this.score,
             isLeader: this.isLeader,
-            isPlaying: this.isPlaying
+            isPlaying: this.isPlaying,
+            blocksPlaced: this.blocksPlaced,
+            id: this.id,                // Ajouter l'ID
+            socketId: this.socketId     // Ajouter le socketId
         };
     }
 }

@@ -110,6 +110,11 @@
                 <h4>Event Log:</h4>
                 <div id="eventLog" class="event-log"></div>
             </div>
+
+            <div class="controls-group">
+                <h4>User info:</h4>
+                <pre id="userInfo" class="debug-info">No user info available</pre>
+            </div>
         </div>
     </div>
 
@@ -118,6 +123,7 @@
         let firstUpdateReceived = false;
         const socket = io('http://localhost:3000');
         let currentRoom = '';
+        let userData = null;
 
         function createEmptyBoard() {
             const board = document.getElementById('gameBoard');
@@ -152,6 +158,23 @@
             }
         }
 
+        function updateUserInfo(data) {
+            const userInfo = document.getElementById('userInfo');
+            if (data) {
+                const displayData = {
+                    Joueur: data.playerName,
+                    ID: data.playerId,
+                    Room: data.roomId,
+                    Leader: data.isLeader ? 'Oui' : 'Non',
+                    'En jeu': data.isPlaying ? 'Oui' : 'Non',
+                    'Blocs placés': data.blocksPlaced 
+                };
+                userInfo.textContent = JSON.stringify(displayData, null, 2);
+            } else {
+                userInfo.textContent = "Non connecté";
+            }
+        }
+
         function updateBoard(gameState) {
             if (!gameState || !gameState.gameState || !gameState.gameState.board) {
                 console.error('Données de jeu invalides:', gameState);
@@ -161,7 +184,6 @@
             const board = gameState.gameState.board;
             let currentPieceData = gameState.gameState.currentPiece;
 
-            // Conservation du type de la première pièce
             if (currentPieceData && !firstUpdateReceived) {
                 if (currentPiece) {
                     currentPieceData.type = currentPiece.type;
@@ -170,11 +192,9 @@
                 firstUpdateReceived = true;
             }
 
-            // Mise à jour de la pièce courante
             currentPiece = currentPieceData;
             updatePieceInfo(currentPiece);
 
-            // Mise à jour du plateau
             board.forEach((row, i) => {
                 row.forEach((cell, j) => {
                     const cellElement = document.getElementById(`cell-${i}-${j}`);
@@ -186,7 +206,6 @@
                 });
             });
 
-            // Affichage de la pièce courante
             if (currentPiece) {
                 const pos = currentPiece.position;
                 const shape = currentPiece.shape;
@@ -213,6 +232,20 @@
                     position: currentPiece?.position
                 }
             }, null, 2);
+
+            // Mise à jour des infos utilisateur si présentes dans la réponse
+            if (userData && gameState.players) {
+                const currentPlayer = gameState.players.find(p => p.id === userData.playerId);
+                if (currentPlayer) {
+                    userData = {
+                        ...userData,
+                        blocksPlaced: currentPlayer.blocksPlaced || 0,
+                        isPlaying: gameState.isPlaying,
+                        isLeader: currentPlayer.isLeader
+                    };
+                    updateUserInfo(userData);
+                }
+            }
         }
 
         function joinGame() {
@@ -260,8 +293,33 @@
             createEmptyBoard();
         });
 
+        socket.on('joined-room', (data) => {
+            logEvent(`Joined room: ${data.room} as ${data.playerId}`);
+            const player = data.players.find(p => p.id === data.playerId);
+            userData = {
+                playerId: data.playerId,
+                playerName: document.getElementById('playerName').value,
+                roomId: data.room,
+                isLeader: player?.isLeader || false,
+                blocksPlaced: player?.blocksPlaced || 0
+            };
+            updateUserInfo(userData);
+        });
+
         socket.on('room-update', (data) => {
             logEvent(`Mise à jour de la room: ${JSON.stringify(data)}`);
+            if (userData && data.players) {
+                const currentPlayer = data.players.find(p => p.id === userData.playerId);
+                if (currentPlayer) {
+                    userData = {
+                        ...userData,
+                        isLeader: currentPlayer.isLeader,
+                        isPlaying: data.isPlaying,
+                        blocksPlaced: currentPlayer.blocksPlaced || 0
+                    };
+                    updateUserInfo(userData);
+                }
+            }
         });
 
         socket.on('game-started', (data) => {
@@ -271,16 +329,43 @@
             firstUpdateReceived = false;
             updateBoard(data);
             document.querySelector('.debug-panel').style.backgroundColor = '#e8f5e9';
+            
+            if (userData) {
+                userData = {
+                    ...userData,
+                    isPlaying: true
+                };
+                updateUserInfo(userData);
+            }
         });
 
         socket.on('game-update', (data) => {
             console.log('Mise à jour reçue:', data);
-            console.log('Type de la pièce actuelle:', currentPiece?.type);
             updateBoard(data);
+            
+            // Mise à jour des infos utilisateur si présentes dans la réponse
+            if (userData && data.players) {
+                const currentPlayer = data.players.find(p => p.id === userData.playerId);
+                if (currentPlayer) {
+                    userData = {
+                        ...userData,
+                        isPlaying: data.isPlaying,
+                        isLeader: currentPlayer.isLeader,
+                        blocksPlaced: currentPlayer.blocksPlaced || 0
+                    };
+                    updateUserInfo(userData);
+                }
+            }
         });
 
         socket.on('error', (error) => {
             logEvent(`Erreur: ${error.message}`);
+        });
+
+        socket.on('disconnect', () => {
+            logEvent('Déconnecté du serveur');
+            userData = null;
+            updateUserInfo(null);
         });
     </script>
 </body>

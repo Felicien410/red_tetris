@@ -11,56 +11,97 @@ class GameLogicService {
   }
 
   // Crée une nouvelle partie pour une room donnée
-  async createGame(roomId) {
-    console.log('Création d\'un nouveau jeu pour la room:', roomId);
+  async createGame(roomId, playerId) {
+    console.log('Création d\'un nouveau jeu pour le joueur:', playerId, 'dans la room:', roomId);
+    const game = new Game(roomId, this.redisClient, playerId);
 
-    //cree un jeu vide et le stocke dans la map
-    const game = new Game(roomId);
-    this.games.set(roomId, game); 
+    // Initialise la Map pour la room si elle n'existe pas
+    if (!this.games.has(roomId)) {
+        this.games.set(roomId, new Map());
+    }
 
-    //demarre le jeu (premiere piece...)
-    game.start(); 
-    
-    // recupere l'etat du jeu et le sauvegarde dans Redis
+    // Stocke l'instance de jeu pour ce joueur spécifique
+    this.games.get(roomId).set(playerId, game);
+    await game.start();
+
+    // Récupère l'état initial
     const initialState = game.getState();
-    await this.saveGameState(roomId, initialState);
-    
-    return { gameState: initialState };
-  }
+    const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
+    const roomData = await this.redisClient.hGetAll(roomKey);
+    const players = JSON.parse(roomData.players || '[]');
+
+    return { 
+        gameState: initialState,
+        players: players,
+        isPlaying: roomData.isPlaying === 'true'
+    };
+}
 
   // Sauvegarde l'état du jeu dans Redis
   async saveGameState(roomId, gameState) {
     try {
       const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
       await this.redisClient.hSet(roomKey, 'gameState', JSON.stringify(gameState));
-      console.log('État du jeu sauvegardé:', gameState);
+     // console.log('État du jeu sauvegardé:', gameState);
     } catch (error) {
       console.error('Erreur lors de la sauvegarde de l\'état:', error);
     }
   }
 
-  async handleMove(roomId, direction) {
+  async handleMove(roomId, playerId, direction) {
     try {
-      const game = this.games.get(roomId);
-      if (!game) {
-        console.error('Jeu non trouvé pour la room:', roomId);
-        return null;
-      }
-      game.movePiece(direction);
-      return { gameState: game.getState() };
-    } catch (error) {
-      console.error('Erreur dans handleMove:', error);
-      return null;
-    }
-  }
+        const playerGames = this.games.get(roomId);
+        if (!playerGames) {
+            console.error('Aucun jeu trouvé pour la room:', roomId);
+            return null;
+        }
 
-  async handleRotation(roomId) {
-    try {
-      const game = this.games.get(roomId);
-      if (!game) {
-        console.error('Jeu non trouvé pour la room:', roomId);
+        const game = playerGames.get(playerId);
+        if (!game) {
+            console.error('Aucun jeu trouvé pour le joueur:', playerId);
+            return null;
+        }
+
+        const result = game.movePiece(direction);
+        const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
+        const roomData = await this.redisClient.hGetAll(roomKey);
+        let players = JSON.parse(roomData.players);
+
+        if (result && result.locked) {
+            const playerIndex = players.findIndex(p => p.id === playerId);
+            if (playerIndex !== -1) {
+                if (!players[playerIndex].blocksPlaced) players[playerIndex].blocksPlaced = 0;
+                players[playerIndex].blocksPlaced++;
+                console.log('blocksPlaced:', players[playerIndex].blocksPlaced);
+                
+                // Mettre à jour blocksPlaced dans l'instance du jeu
+                game.blocksPlaced = players[playerIndex].blocksPlaced;
+                
+                // Générer la prochaine pièce avec le nouveau blocksPlaced
+                game.nextPiece = game.generateNextPiece(game.seed, game.blocksPlaced);
+                
+                await this.redisClient.hSet(roomKey, 'players', JSON.stringify(players));
+            }
+        }
+
+        return {
+            gameState: game.getState(),
+            players: players,
+            isPlaying: roomData.isPlaying === 'true'
+        };
+    } catch (error) {
+        console.error('Erreur dans handleMove:', error);
         return null;
-      }
+    }
+}
+  async handleRotation(roomId, playerId) {
+    try {
+      const playerGames = this.games.get(roomId);
+      if (!playerGames) return null;
+
+      const game = playerGames.get(playerId);
+      if (!game) return null;
+
       game.rotatePiece();
       return { gameState: game.getState() };
     } catch (error) {
@@ -68,6 +109,7 @@ class GameLogicService {
       return null;
     }
   }
+
 
   // Gestion des pénalités (spécifique au mode multijoueur)
 //   async addPenaltyLines(roomId, count) {

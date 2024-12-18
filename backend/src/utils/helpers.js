@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { REDIS_KEYS, MAX_PLAYERS } = require('../config/constants');
+const Player = require('../classes/Player'); // Ajouter en haut du fichier
 
 // Configuration des middlewares
 function setupMiddlewares(app) {
@@ -122,13 +123,18 @@ function setupSocketHandlers(socket, server) {
 
             const playerIndex = players.findIndex(p => p.name === pseudo);
             if (playerIndex !== -1) {
-                players[playerIndex].id = socket.id;
+                // Mise à jour du joueur existant
+                const player = new Player(pseudo, room);
+                player.setSocketId(socket.id);
+                player.setLeader(players[playerIndex].isLeader);
+                player.blocksPlaced = players[playerIndex].blocksPlaced || 0;
+                players[playerIndex] = player.toJSON();
             } else {
-                players.push({
-                    id: socket.id,
-                    name: pseudo,
-                    isLeader: players.length === 0
-                });
+                // Création d'un nouveau joueur
+                const player = new Player(pseudo, room);
+                player.setSocketId(socket.id);
+                player.setLeader(players.length === 0);
+                players.push(player.toJSON());
             }
 
             await server.redisClient.hSet(roomKey, 'players', JSON.stringify(players));
@@ -158,58 +164,92 @@ function setupSocketHandlers(socket, server) {
         try {
             const roomId = data.room || data.roomId;
             if (!roomId) throw new Error('Room ID is required');
-
+    
             const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
             const roomExists = await server.redisClient.exists(roomKey);
-            if (!roomExists) throw new Error('Room not found - Please try reconnecting');
-
+            if (!roomExists) throw new Error('Room not found');
+    
             const roomData = await server.redisClient.hGetAll(roomKey);
             if (!roomData || !roomData.players) throw new Error('Invalid room data');
-
+    
+            // Parse les joueurs et vérifie le socket
             const players = JSON.parse(roomData.players);
-            const currentPlayer = players.find(p => p.id === socket.id);
             
-            if (!currentPlayer) throw new Error('Player not found in room');
-            if (!currentPlayer.isLeader) throw new Error('Seul le leader peut démarrer la partie');
-
-            const gameState = await server.gameLogicService.createGame(roomId);
+            // Debug des IDs
+            console.log('Checking player:', {
+                socketId: socket.id,
+                players: players.map(p => ({
+                    name: p.name,
+                    id: p.id,
+                    socketId: p.socketId
+                }))
+            });
+    
+            // Recherche du joueur avec plusieurs options d'ID
+            const currentPlayer = players.find(p => 
+                p.id === socket.id || 
+                p.socketId === socket.id || 
+                p.playerId === socket.id
+            );
+    
+            if (!currentPlayer) {
+                throw new Error('Player not found in room');
+            }
+    
+            // Le reste du code pour créer les instances de jeu...
+            // Créer une instance de jeu pour chaque joueur
+            for (const player of players) {
+                const playerGameState = await server.gameLogicService.createGame(roomId, player.id || player.socketId);
+                server.io.to(player.id || player.socketId).emit('game-started', playerGameState);
+            }
+    
             await server.redisClient.hSet(roomKey, 'isPlaying', 'true');
-
-            server.io.to(roomId).emit('game-started', gameState);
+    
+            // Mettre à jour les joueurs avec l'état de jeu
             server.io.to(roomId).emit('room-update', {
                 room: roomId,
                 players: players,
                 isPlaying: true
             });
-
-            startGameLoop(roomId, server);
-
+    
+            // Démarrer les boucles de jeu
+            for (const player of players) {
+                startPlayerGameLoop(roomId, player.id || player.socketId, server);
+            }
+    
         } catch (error) {
             console.error('Erreur lors du démarrage:', error);
-            socket.emit('error', { 
-                message: error.message,
-                details: 'Erreur lors du démarrage de la partie'
-            });
+            socket.emit('error', { message: error.message });
         }
     });
 
     socket.on('move-piece', async (data) => {
         if (socket.roomId) {
-            const gameUpdate = await server.gameLogicService.handleMove(socket.roomId, data.direction);
+            const gameUpdate = await server.gameLogicService.handleMove(
+                socket.roomId,
+                socket.id,  // Ajout de l'ID du joueur
+                data.direction
+            );
             if (gameUpdate) {
-                server.io.to(socket.roomId).emit('game-update', gameUpdate);
+                // Envoyer la mise à jour uniquement au joueur concerné
+                server.io.to(socket.id).emit('game-update', gameUpdate);
             }
         }
     });
 
     socket.on('rotate-piece', async (data) => {
         if (socket.roomId) {
-            const gameUpdate = await server.gameLogicService.handleRotation(socket.roomId);
+            const gameUpdate = await server.gameLogicService.handleRotation(
+                socket.roomId,
+                socket.id  // Ajout de l'ID du joueur
+            );
             if (gameUpdate) {
-                server.io.to(socket.roomId).emit('game-update', gameUpdate);
+                // Envoyer la mise à jour uniquement au joueur concerné
+                server.io.to(socket.id).emit('game-update', gameUpdate);
             }
         }
     });
+    
 
     socket.on('disconnect', async () => {
         console.log('Disconnection:', socket.id);
@@ -223,30 +263,34 @@ function setupSocketHandlers(socket, server) {
 }
 
 // Gestion des intervalles de jeu
-function startGameLoop(roomId, server) {
-    console.log('Démarrage de la boucle de jeu pour la room:', roomId);
+function startPlayerGameLoop(roomId, playerId, server) {
+    console.log(`Démarrage de la boucle de jeu pour le joueur ${playerId} dans la room ${roomId}`);
     const interval = setInterval(async () => {
         try {
-            const gameUpdate = await server.gameLogicService.handleMove(roomId, 'down');
+            const gameUpdate = await server.gameLogicService.handleMove(
+                roomId,
+                playerId,
+                'down'
+            );
             if (gameUpdate) {
-                server.io.to(roomId).emit('game-update', gameUpdate);
+                server.io.to(playerId).emit('game-update', gameUpdate);
             }
         } catch (error) {
             console.error('Erreur dans la boucle de jeu:', error);
             clearInterval(interval);
-            server.gameIntervals.delete(roomId);
+            server.gameIntervals.delete(`${roomId}-${playerId}`);
         }
     }, 1000);
 
-    server.gameIntervals.set(roomId, interval);
+    server.gameIntervals.set(`${roomId}-${playerId}`, interval);
 }
 
-function stopGameLoop(roomId, server) {
-    const interval = server.gameIntervals.get(roomId);
+function stopGameLoop(roomId, playerId, server) {
+    const interval = server.gameIntervals.get(`${roomId}-${playerId}`);
     if (interval) {
         clearInterval(interval);
-        server.gameIntervals.delete(roomId);
-        console.log('Boucle de jeu arrêtée pour la room:', roomId);
+        server.gameIntervals.delete(`${roomId}-${playerId}`);
+        console.log(`Boucle de jeu arrêtée pour le joueur ${playerId} dans la room ${roomId}`);
     }
 }
 
@@ -262,7 +306,7 @@ async function cleanupRoom(roomId, socketId, server) {
 
             if (players.length === 0) {
                 await server.redisClient.del(roomKey);
-                stopGameLoop(roomId, server);
+                stopGameLoop(roomId, socketId, server);  // Ajout de socketId
             } else {
                 if (!players.some(p => p.isLeader)) {
                     players[0].isLeader = true;
@@ -273,6 +317,7 @@ async function cleanupRoom(roomId, socketId, server) {
                     players,
                     isPlaying: roomData.isPlaying === 'true'
                 });
+                stopGameLoop(roomId, socketId, server);  // Ajout de socketId
             }
         }
     } catch (error) {
@@ -288,6 +333,7 @@ async function cleanupAllRooms(redisClient) {
         }
         console.log('All rooms cleaned up');
     } catch (error) {
+
         console.error('Error cleaning all rooms:', error);
     }
 }
@@ -297,7 +343,7 @@ module.exports = {
     setupDebugRoute,
     setupMainRoutes,
     setupSocketHandlers,
-    startGameLoop,
+    startPlayerGameLoop,
     stopGameLoop,
     cleanupRoom,
     cleanupAllRooms

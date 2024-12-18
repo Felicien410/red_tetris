@@ -1,11 +1,14 @@
 // src/classes/Game.js
 const Piece = require('./Piece');
-const { BOARD, POINTS, PIECE_TYPES } = require('../config/constants');
+const Player = require('./Player');
+const { REDIS_KEYS, BOARD, POINTS, PIECE_TYPES } = require('../config/constants');
 
 class Game {
   // Initialisation du jeu avec les propriétés de base
-  constructor(roomId) {
+  constructor(roomId, redisClient, playerId) {
     this.roomId = roomId;
+    this.redisClient = redisClient;
+    this.playerId = playerId;
     this.board = Array(BOARD.HEIGHT).fill().map(() => Array(BOARD.WIDTH).fill(0));
     this.currentPiece = null;
     this.nextPiece = null;
@@ -16,15 +19,44 @@ class Game {
     this.linesCleared = 0;
     this.isPaused = false;
     this.gameOver = false;
+    this.seed = '0'; // Valeur par défaut
+    this.playerBlocksPlaced = 0; // Valeur par défaut
   }
 
-  start() {
+
+  async loadGameInfo() {
+    try {
+      const roomKey = `${REDIS_KEYS.GAME_PREFIX}${this.roomId}`;
+      const [seed, playersData] = await Promise.all([
+        this.redisClient.hGet(roomKey, 'seed'),
+        this.redisClient.hGet(roomKey, 'players')
+      ]);
+
+      if (seed) {
+        this.seed = seed;
+      }
+      
+      if (playersData) {
+        const players = JSON.parse(playersData);
+        const currentPlayer = players.find(p => p.id === this.playerId);
+        if (currentPlayer) {
+          this.playerBlocksPlaced = currentPlayer.blocksPlaced || 0;
+        }
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des infos du jeu:', error);
+      // Utiliser les valeurs par défaut en cas d'erreur
+      this.seed = '0';
+      this.playerBlocksPlaced = 0;
+    }
+  }
+
+  async start() {
+    await this.loadGameInfo();
     this.reset();
     this.isPlaying = true;
-    this.spawnPiece();  // On utilise spawnPiece pour la première pièce aussi
-    console.log('piece spawned');
-    return this;
-}
+    return this.spawnPiece();
+  }
 
   // Réinitialise l'état du jeu
   reset() {
@@ -42,41 +74,67 @@ class Game {
   }
 
   // Génère la prochaine pièce aléatoirement
-  generateNextPiece() {
-    console.log('Génération de la prochaine pièce');
-    const types = PIECE_TYPES ;
-    const randomType = types[Math.floor(Math.random() * types.length)];
-    // Create a new Piece instance for nextPiece
-    this.nextPiece = new Piece(randomType);
-    return this;
+// Méthode pour générer la prochaine pièce
+async generateNextPiece(roomId, blocksPlaced) {
+  try {
+      const seed = await this.lobbyService.getRoomSeed(roomId);
+      if (!seed) {
+          throw new Error('Seed not found for room');
+      }
+
+      // Utiliser blocksPlaced comme paramètre au lieu de le réinitialiser
+      const hash = seed + blocksPlaced;
+      console.log('Hash:', hash);
+
+      // Générer un nombre pseudo-aléatoire basé sur le hash
+      const randomValue = parseInt(hash.split('').reduce((acc, char) => {
+          return acc + char.charCodeAt(0);
+      }, 0));
+
+      // Sélectionner une pièce basée sur le nombre pseudo-aléatoire
+      const pieceTypes = Object.keys(PIECE_SHAPES);
+      const selectedType = pieceTypes[randomValue % pieceTypes.length];
+
+      return new Piece(selectedType);
+  } catch (error) {
+      console.error('Error generating next piece:', error);
+      // En cas d'erreur, retourner une pièce aléatoire par défaut
+      const pieceTypes = Object.keys(PIECE_SHAPES);
+      return new Piece(pieceTypes[Math.floor(Math.random() * pieceTypes.length)]);
   }
+}
+
 
   // Fait apparaître une nouvelle pièce sur le plateau
-  spawnPiece() {
-    console.log('Apparition d\'une nouvelle pièce');
-    if (!this.nextPiece) {
-        this.generateNextPiece();
-    }
-    
-    // Create a new instance of Piece instead of just referencing nextPiece
-    this.currentPiece = new Piece(this.nextPiece.type);
-    this.currentPiece.position = {
-        x: Math.floor(BOARD.WIDTH / 2) - 1,
-        y: 0
-    };
-    
-    // Generate next piece after setting current piece
-    this.generateNextPiece();
-    
-    // Vérifie si la pièce peut être placée (game over si non)
-    if (this.checkCollision(this.currentPiece)) {
-        this.gameOver = true;
-        this.isPlaying = false;
-        return false;
-    }
-    
-    return true;
+// Fait apparaître une nouvelle pièce sur le plateau
+spawnPiece() {
+  console.log('Apparition d\'une nouvelle pièce');
+  if (!this.nextPiece) {
+      // Passer le seed et blocksPlaced lors de la première génération
+      this.nextPiece = this.generateNextPiece(this.seed, this.blocksPlaced);
+  }
+  
+  // Create a new instance of Piece instead of just referencing nextPiece
+  this.currentPiece = new Piece(this.nextPiece.type);
+  this.currentPiece.position = {
+      x: Math.floor(BOARD.WIDTH / 2) - 1,
+      y: 0
+  };
+  
+  // Generate next piece after setting current piece
+  // Passer le seed et blocksPlaced pour la prochaine pièce
+  this.nextPiece = this.generateNextPiece(this.seed, this.blocksPlaced);
+  
+  // Vérifie si la pièce peut être placée (game over si non)
+  if (this.checkCollision(this.currentPiece)) {
+      this.gameOver = true;
+      this.isPlaying = false;
+      return false;
+  }
+  
+  return true;
 }
+
 
   // Déplace la pièce courante
   movePiece(direction) {
@@ -213,6 +271,7 @@ class Game {
         }
       }
     }
+
     return this;
   }
 
@@ -276,11 +335,6 @@ class Game {
     };
   }
 
-  // Méthode pour obtenir le type de la prochaine pièce
-  getRandomPieceType() {
-    const types = PIECE_TYPES;
-    return types[Math.floor(Math.random() * types.length)];
-  }
 }
 
 module.exports = Game;
