@@ -1,10 +1,7 @@
-// src/classes/Game.js
 const Piece = require('./Piece');
-const Player = require('./Player');
-const { REDIS_KEYS, BOARD, POINTS, PIECE_TYPES } = require('../config/constants');
+const { BOARD, POINTS, PIECE_TYPES, REDIS_KEYS } = require('../config/constants');
 
 class Game {
-  // Initialisation du jeu avec les propriétés de base
   constructor(roomId, redisClient, playerId) {
     this.roomId = roomId;
     this.redisClient = redisClient;
@@ -19,166 +16,141 @@ class Game {
     this.linesCleared = 0;
     this.isPaused = false;
     this.gameOver = false;
-    this.seed = '0'; // Valeur par défaut
-    this.playerBlocksPlaced = 0; // Valeur par défaut
+    this.seed = '0';
+    this.playerBlocksPlaced = 0;
   }
 
+  async generateNextPiece() {
+    console.log('Génération de la prochaine pièce', {
+      seed: this.seed,
+      blocksPlaced: this.playerBlocksPlaced
+    });
 
-  async loadGameInfo() {
-    try {
-      const roomKey = `${REDIS_KEYS.GAME_PREFIX}${this.roomId}`;
-      const [seed, playersData] = await Promise.all([
-        this.redisClient.hGet(roomKey, 'seed'),
-        this.redisClient.hGet(roomKey, 'players')
-      ]);
+    // Construit le hash avec le seed et le nombre de blocs placés
+    const hash = this.seed + this.playerBlocksPlaced.toString();
+    console.log('Hash:', hash);
 
-      if (seed) {
-        this.seed = seed;
+    // Calcule l'index de manière déterministe
+    let index = 0;
+    for (let i = 0; i < hash.length; i++) {
+      index = (index + hash.charCodeAt(i)) % PIECE_TYPES.length;
+    }
+
+    const pieceType = PIECE_TYPES[index];
+    console.log('Type de pièce généré:', pieceType);
+    
+    return new Piece(pieceType);
+  }
+
+  async updateBlocksPlaced(blockCount) {
+    // Mise à jour du compteur local
+    this.playerBlocksPlaced += 1;
+    
+    // Mise à jour dans Redis
+    const roomKey = `${REDIS_KEYS.GAME_PREFIX}${this.roomId}`;
+    const playersData = await this.redisClient.hGet(roomKey, 'players');
+    
+    if (playersData) {
+      const players = JSON.parse(playersData);
+      const playerIndex = players.findIndex(p => p.id === this.playerId);
+      if (playerIndex !== -1) {
+        players[playerIndex].blocksPlaced = this.playerBlocksPlaced;
+        await this.redisClient.hSet(roomKey, 'players', JSON.stringify(players));
       }
-      
-      if (playersData) {
-        const players = JSON.parse(playersData);
-        const currentPlayer = players.find(p => p.id === this.playerId);
-        if (currentPlayer) {
-          this.playerBlocksPlaced = currentPlayer.blocksPlaced || 0;
+    }
+
+    console.log('Nombre total de blocs placés:', this.playerBlocksPlaced);
+    return this.playerBlocksPlaced;
+  }
+
+  async lockPiece() {
+    const shape = this.currentPiece.getShape();
+    const pos = this.currentPiece.position;
+    let blockCount = 0;
+
+    for (let y = 0; y < shape.length; y++) {
+      for (let x = 0; x < shape[y].length; x++) {
+        if (shape[y][x]) {
+          const boardY = pos.y + y;
+          const boardX = pos.x + x;
+          if (boardY >= 0) {
+            this.board[boardY][boardX] = this.currentPiece.type;
+            blockCount++;
+          }
         }
       }
-    } catch (error) {
-      console.error('Erreur lors du chargement des infos du jeu:', error);
-      // Utiliser les valeurs par défaut en cas d'erreur
-      this.seed = '0';
-      this.playerBlocksPlaced = 0;
     }
-  }
 
-  async start() {
-    await this.loadGameInfo();
-    this.reset();
-    this.isPlaying = true;
-    return this.spawnPiece();
-  }
+    await this.updateBlocksPlaced(blockCount);
 
-  // Réinitialise l'état du jeu
-  reset() {
-    this.board = Array(BOARD.HEIGHT).fill().map(() => Array(BOARD.WIDTH).fill(0));
-    this.score = 0;
-    this.level = 1;
-    this.gameSpeed = 1000;
-    this.linesCleared = 0;
-    this.currentPiece = null;
-    this.nextPiece = null;
-    this.isPlaying = false;
-    this.isPaused = false;
-    this.gameOver = false;
     return this;
   }
 
-  // Génère la prochaine pièce aléatoirement
-// Méthode pour générer la prochaine pièce
-async generateNextPiece(roomId, blocksPlaced) {
-  try {
-      const seed = await this.lobbyService.getRoomSeed(roomId);
-      if (!seed) {
-          throw new Error('Seed not found for room');
-      }
-
-      // Utiliser blocksPlaced comme paramètre au lieu de le réinitialiser
-      const hash = seed + blocksPlaced;
-      console.log('Hash:', hash);
-
-      // Générer un nombre pseudo-aléatoire basé sur le hash
-      const randomValue = parseInt(hash.split('').reduce((acc, char) => {
-          return acc + char.charCodeAt(0);
-      }, 0));
-
-      // Sélectionner une pièce basée sur le nombre pseudo-aléatoire
-      const pieceTypes = Object.keys(PIECE_SHAPES);
-      const selectedType = pieceTypes[randomValue % pieceTypes.length];
-
-      return new Piece(selectedType);
-  } catch (error) {
-      console.error('Error generating next piece:', error);
-      // En cas d'erreur, retourner une pièce aléatoire par défaut
-      const pieceTypes = Object.keys(PIECE_SHAPES);
-      return new Piece(pieceTypes[Math.floor(Math.random() * pieceTypes.length)]);
-  }
-}
-
-
-  // Fait apparaître une nouvelle pièce sur le plateau
-// Fait apparaître une nouvelle pièce sur le plateau
-spawnPiece() {
-  console.log('Apparition d\'une nouvelle pièce');
-  if (!this.nextPiece) {
-      // Passer le seed et blocksPlaced lors de la première génération
-      this.nextPiece = this.generateNextPiece(this.seed, this.blocksPlaced);
-  }
+  async spawnPiece() {
+    console.log('Apparition d\'une nouvelle pièce');
+    console.log('Blocks placed:', this.playerBlocksPlaced);
   
-  // Create a new instance of Piece instead of just referencing nextPiece
-  this.currentPiece = new Piece(this.nextPiece.type);
-  this.currentPiece.position = {
+    // Génère une nouvelle pièce directement
+    const pieceType = await this.generateNextPiece();
+    
+    this.currentPiece = new Piece(pieceType.type);
+    this.currentPiece.position = {
       x: Math.floor(BOARD.WIDTH / 2) - 1,
       y: 0
-  };
+    };
   
-  // Generate next piece after setting current piece
-  // Passer le seed et blocksPlaced pour la prochaine pièce
-  this.nextPiece = this.generateNextPiece(this.seed, this.blocksPlaced);
-  
-  // Vérifie si la pièce peut être placée (game over si non)
-  if (this.checkCollision(this.currentPiece)) {
+    if (this.checkCollision(this.currentPiece)) {
       this.gameOver = true;
       this.isPlaying = false;
       return false;
-  }
+    }
   
-  return true;
-}
+    return true;
+  }
 
 
   // Déplace la pièce courante
-  movePiece(direction) {
+  async movePiece(direction) {
     if (!this.currentPiece || !this.isPlaying || this.isPaused) return false;
 
     const movements = {
-        left: { x: -1, y: 0 },
-        right: { x: 1, y: 0 },
-        down: { x: 0, y: 1 }
+      left: { x: -1, y: 0 },
+      right: { x: 1, y: 0 },
+      down: { x: 0, y: 1 }
     };
 
     const move = movements[direction];
     if (!move) return false;
 
-    // Sauvegarde l'ancienne position
     const oldX = this.currentPiece.position.x;
     const oldY = this.currentPiece.position.y;
 
-    // Applique le mouvement temporairement
     this.currentPiece.position.x += move.x;
     this.currentPiece.position.y += move.y;
 
-    // Vérifie la collision
     if (this.checkCollision(this.currentPiece)) {
-        // Restaure l'ancienne position
-        this.currentPiece.position.x = oldX;
-        this.currentPiece.position.y = oldY;
-        // Si c un mouvement vers le bas qui a causé la collision
-        if (direction === 'down') {
-            console.log('Verrouillage de la pièce');
-            this.lockPiece();
-            // on verifie qu il n y a pas de lignes a effacer
-            const linesCleared = this.clearLines();
-            // on fait apparaitre la prochaine piece
-            const spawnSuccess = this.spawnPiece();
-            
-            if (!spawnSuccess) {
-                this.gameOver = true;
-                this.isPlaying = false;
-            }
-            
-            return { locked: true, linesCleared };
+      this.currentPiece.position.x = oldX;
+      this.currentPiece.position.y = oldY;
+
+      if (direction === 'down') {
+        console.log('Verrouillage de la pièce');
+        // Verrouillez d'abord la pièce et mettez à jour le compteur
+        await this.lockPiece();
+        const linesCleared = this.clearLines();
+        
+        console.log('Blocks placed après verrouillage:', this.playerBlocksPlaced);
+        
+        // Générez la prochaine pièce seulement après la mise à jour du compteur
+        const spawnSuccess = await this.spawnPiece();
+        
+        if (!spawnSuccess) {
+          this.gameOver = true;
+          this.isPlaying = false;
         }
-        return false;
+        
+        return { locked: true, linesCleared };
+      }
+      return false;
     }
 
     return true;
@@ -247,34 +219,7 @@ spawnPiece() {
     }
     return false;
 }
-
-  // Verrouille une pièce sur le plateau
-  lockPiece() {
-    const shape = this.currentPiece.getShape();
-    const pos = this.currentPiece.position;
-
-    for (let y = 0; y < shape.length; y++) {
-      for (let x = 0; x < shape[y].length; x++) {
-        //si cellul pleine alors on calcule la position correspondante sur le plateau global.
-        //On ajoute simplement la coordonnée locale (x, y) de la cellule à la position globale
-        // de la pièce (pos.x, pos.y) pour obtenir (boardX, boardY).
-        if (shape[y][x]) {
-
-          const boardY = pos.y + y;
-          const boardX = pos.x + x;
-          if (boardY >= 0) {
-          //Si la case de la pièce est occupée, on va poser le type de la pièce (this.currentPiece.type)
-          //dans la grille du plateau this.board au bon endroit 
-          //(this.board[boardY][boardX] = this.currentPiece.type;).
-            this.board[boardY][boardX] = this.currentPiece.type;
-          }
-        }
-      }
-    }
-
-    return this;
-  }
-
+  
   // Vérifie et efface les lignes complètes
   clearLines() {
     let linesCleared = 0;

@@ -1,99 +1,91 @@
-// src/services/gameLogicService.js
+const { REDIS_KEYS, MAX_PLAYERS, BOARD } = require('../config/constants');
 const Game = require('../classes/Game');
-const { REDIS_KEYS } = require('../config/constants');
 
 class GameLogicService {
-
-  // cree un redisClient et une map pour stocker toutes les parties en cours
   constructor(redisClient) {
-      this.redisClient = redisClient;
-      this.games = new Map();
+    this.redisClient = redisClient;
+    this.games = new Map();
   }
 
-  // Crée une nouvelle partie pour une room donnée
   async createGame(roomId, playerId) {
     console.log('Création d\'un nouveau jeu pour le joueur:', playerId, 'dans la room:', roomId);
+
+    // Charger les données de la room d'abord
+    const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
+    const roomData = await this.redisClient.hGetAll(roomKey);
+    const players = JSON.parse(roomData.players || '[]');
+    const seed = roomData.seed || `${roomId}-${Date.now()}`;
+
+    // Créer le jeu avec les paramètres initiaux
     const game = new Game(roomId, this.redisClient, playerId);
+    game.seed = seed;
+
+    // Initialiser le compteur de blocs placés depuis les données joueur
+    const currentPlayer = players.find(p => p.id === playerId);
+    if (currentPlayer) {
+      game.playerBlocksPlaced = currentPlayer.blocksPlaced || 0;
+    }
 
     // Initialise la Map pour la room si elle n'existe pas
     if (!this.games.has(roomId)) {
-        this.games.set(roomId, new Map());
+      this.games.set(roomId, new Map());
     }
 
     // Stocke l'instance de jeu pour ce joueur spécifique
     this.games.get(roomId).set(playerId, game);
-    await game.start();
 
-    // Récupère l'état initial
-    const initialState = game.getState();
-    const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
-    const roomData = await this.redisClient.hGetAll(roomKey);
-    const players = JSON.parse(roomData.players || '[]');
+    // Initialisation directe du jeu (au lieu d'appeler reset)
+    game.board = Array(BOARD.HEIGHT).fill().map(() => Array(BOARD.WIDTH).fill(0));
+    game.score = 0;
+    game.level = 1;
+    game.gameSpeed = 1000;
+    game.linesCleared = 0;
+    game.currentPiece = null;
+    game.nextPiece = null;
+    game.isPaused = false;
+    game.gameOver = false;
+    game.isPlaying = true;
+
+    await game.spawnPiece();
 
     return { 
-        gameState: initialState,
-        players: players,
-        isPlaying: roomData.isPlaying === 'true'
+      gameState: game.getState(),
+      players: players,
+      isPlaying: roomData.isPlaying === 'true'
     };
-}
-
-  // Sauvegarde l'état du jeu dans Redis
-  async saveGameState(roomId, gameState) {
-    try {
-      const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
-      await this.redisClient.hSet(roomKey, 'gameState', JSON.stringify(gameState));
-     // console.log('État du jeu sauvegardé:', gameState);
-    } catch (error) {
-      console.error('Erreur lors de la sauvegarde de l\'état:', error);
-    }
   }
 
   async handleMove(roomId, playerId, direction) {
     try {
-        const playerGames = this.games.get(roomId);
-        if (!playerGames) {
-            console.error('Aucun jeu trouvé pour la room:', roomId);
-            return null;
-        }
-
-        const game = playerGames.get(playerId);
-        if (!game) {
-            console.error('Aucun jeu trouvé pour le joueur:', playerId);
-            return null;
-        }
-
-        const result = game.movePiece(direction);
-        const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
-        const roomData = await this.redisClient.hGetAll(roomKey);
-        let players = JSON.parse(roomData.players);
-
-        if (result && result.locked) {
-            const playerIndex = players.findIndex(p => p.id === playerId);
-            if (playerIndex !== -1) {
-                if (!players[playerIndex].blocksPlaced) players[playerIndex].blocksPlaced = 0;
-                players[playerIndex].blocksPlaced++;
-                console.log('blocksPlaced:', players[playerIndex].blocksPlaced);
-                
-                // Mettre à jour blocksPlaced dans l'instance du jeu
-                game.blocksPlaced = players[playerIndex].blocksPlaced;
-                
-                // Générer la prochaine pièce avec le nouveau blocksPlaced
-                game.nextPiece = game.generateNextPiece(game.seed, game.blocksPlaced);
-                
-                await this.redisClient.hSet(roomKey, 'players', JSON.stringify(players));
-            }
-        }
-
-        return {
-            gameState: game.getState(),
-            players: players,
-            isPlaying: roomData.isPlaying === 'true'
-        };
-    } catch (error) {
-        console.error('Erreur dans handleMove:', error);
+      const playerGames = this.games.get(roomId);
+      if (!playerGames) {
+        console.error('Aucun jeu trouvé pour la room:', roomId);
         return null;
+      }
+  
+      const game = playerGames.get(playerId);
+      if (!game) {
+        console.error('Aucun jeu trouvé pour le joueur:', playerId);
+        return null;
+      }
+  
+      const result = await game.movePiece(direction);
+      const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
+      const roomData = await this.redisClient.hGetAll(roomKey);
+      const players = JSON.parse(roomData.players);
+  
+      // La mise à jour des blocs est déjà gérée dans game.lockPiece()
+      return {
+        gameState: game.getState(),
+        players: players,
+        isPlaying: roomData.isPlaying === 'true'
+      };
+    } catch (error) {
+      console.error('Erreur dans handleMove:', error);
+      return null;
     }
-}
+  }
+
   async handleRotation(roomId, playerId) {
     try {
       const playerGames = this.games.get(roomId);
