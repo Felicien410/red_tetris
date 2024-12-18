@@ -162,66 +162,84 @@ function setupSocketHandlers(socket, server) {
 
     socket.on('start-game', async (data) => {
         try {
+            // 1. Validation des données de base
             const roomId = data.room || data.roomId;
-            if (!roomId) throw new Error('Room ID is required');
+            if (!roomId) {
+                throw new Error('Room ID is required');
+            }
     
+            // 2. Vérification de l'existence de la room
             const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
             const roomExists = await server.redisClient.exists(roomKey);
-            if (!roomExists) throw new Error('Room not found');
+            if (!roomExists) {
+                throw new Error('Room not found');
+            }
     
+            // 3. Récupération des données de la room
             const roomData = await server.redisClient.hGetAll(roomKey);
-            if (!roomData || !roomData.players) throw new Error('Invalid room data');
+            if (!roomData || !roomData.players) {
+                throw new Error('Invalid room data');
+            }
     
-            // Parse les joueurs et vérifie le socket
+            // 4. Récupération et validation des joueurs
             const players = JSON.parse(roomData.players);
-            
-            // Debug des IDs
-            console.log('Checking player:', {
-                socketId: socket.id,
-                players: players.map(p => ({
-                    name: p.name,
-                    id: p.id,
-                    socketId: p.socketId
-                }))
-            });
+            if (players.length === 0) {
+                throw new Error('No players in room');
+            }
     
-            // Recherche du joueur avec plusieurs options d'ID
-            const currentPlayer = players.find(p => 
-                p.id === socket.id || 
-                p.socketId === socket.id || 
-                p.playerId === socket.id
-            );
-    
+            // 5. Identification du joueur qui démarre la partie
+            const currentPlayer = players.find(p => p.socketId === socket.id);
             if (!currentPlayer) {
                 throw new Error('Player not found in room');
             }
     
-            // Le reste du code pour créer les instances de jeu...
-            // Créer une instance de jeu pour chaque joueur
-            for (const player of players) {
-                const playerGameState = await server.gameLogicService.createGame(roomId, player.id || player.socketId);
-                server.io.to(player.id || player.socketId).emit('game-started', playerGameState);
+            // 6. Vérification que le joueur est bien le leader
+            if (!currentPlayer.isLeader) {
+                throw new Error('Only the leader can start the game');
             }
     
-            await server.redisClient.hSet(roomKey, 'isPlaying', 'true');
+            // 7. Vérification que la partie n'est pas déjà en cours
+            if (roomData.isPlaying === 'true') {
+                throw new Error('Game is already in progress');
+            }
     
-            // Mettre à jour les joueurs avec l'état de jeu
+            // 8. Initialisation des jeux pour chaque joueur
+            for (const player of players) {
+                const playerGameState = await server.gameLogicService.createGame(
+                    roomId, 
+                    player.socketId
+                );
+                
+                server.io.to(player.socketId).emit('game-started', playerGameState);
+            }
+    
+            // 9. Mise à jour du statut de la room
+            await server.redisClient.hSet(roomKey, {
+                isPlaying: 'true',
+                players: JSON.stringify(players)
+            });
+    
+            // 10. Notification à tous les joueurs
             server.io.to(roomId).emit('room-update', {
                 room: roomId,
                 players: players,
                 isPlaying: true
             });
     
-            // Démarrer les boucles de jeu
+            // 11. Démarrage des boucles de jeu
             for (const player of players) {
-                startPlayerGameLoop(roomId, player.id || player.socketId, server);
+                startPlayerGameLoop(roomId, player.socketId, server);
             }
+    
+            // 12. Log de confirmation
+            console.log(`Game started in room ${roomId} with ${players.length} players`);
     
         } catch (error) {
             console.error('Erreur lors du démarrage:', error);
             socket.emit('error', { message: error.message });
         }
     });
+    
 
     socket.on('move-piece', async (data) => {
         if (socket.roomId) {

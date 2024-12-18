@@ -22,25 +22,30 @@ class Game {
 
   async generateNextPiece() {
     console.log('Génération de la prochaine pièce', {
-      seed: this.seed,
-      blocksPlaced: this.playerBlocksPlaced
+        seed: this.seed,
+        blocksPlaced: this.playerBlocksPlaced
     });
 
-    // Construit le hash avec le seed et le nombre de blocs placés
     const hash = this.seed + this.playerBlocksPlaced.toString();
     console.log('Hash:', hash);
 
-    // Calcule l'index de manière déterministe
-    let index = 0;
+    // Algorithme de Knuth pour mélanger/distribuer les valeurs
+    let value = 0;
     for (let i = 0; i < hash.length; i++) {
-      index = (index + hash.charCodeAt(i)) % PIECE_TYPES.length;
+        value = ((value << 5) + value) + hash.charCodeAt(i);
+        value = value & value; // Conversion en 32 bits
     }
 
-    const pieceType = PIECE_TYPES[index];
+    // On utilise plusieurs opérations pour rendre le résultat plus chaotique
+    value = Math.abs(value);
+    value = (value * 48271) % 2147483647; // Nombres premiers pour plus de randomisation
+    value = ((value * value) + value) % PIECE_TYPES.length;
+
+    const pieceType = PIECE_TYPES[value];
     console.log('Type de pièce généré:', pieceType);
     
     return new Piece(pieceType);
-  }
+}
 
   async updateBlocksPlaced(blockCount) {
     // Mise à jour du compteur local

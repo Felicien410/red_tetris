@@ -22,7 +22,6 @@ class Player {
     // Permet de définir l'ID de socket lors de la connexion
     setSocketId(socketId) {
         this.socketId = socketId;
-        this.id = socketId;  // On garde les deux pour la compatibilité
         return this;
     }
 
@@ -52,7 +51,6 @@ class Player {
             isLeader: this.isLeader,
             isPlaying: this.isPlaying,
             blocksPlaced: this.blocksPlaced,
-            id: this.id,                // Ajouter l'ID
             socketId: this.socketId     // Ajouter le socketId
         };
     }

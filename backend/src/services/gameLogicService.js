@@ -21,7 +21,7 @@ class GameLogicService {
     game.seed = seed;
 
     // Initialiser le compteur de blocs placés depuis les données joueur
-    const currentPlayer = players.find(p => p.id === playerId);
+    const currentPlayer = players.find(p => p.socketId === playerId);
     if (currentPlayer) {
       game.playerBlocksPlaced = currentPlayer.blocksPlaced || 0;
     }

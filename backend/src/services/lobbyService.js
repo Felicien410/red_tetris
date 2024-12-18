@@ -81,35 +81,31 @@ class LobbyService {
 }
 
   // Supprime un joueur d'une partie
-  async removePlayer(roomId, playerId) {
+  async removePlayer(roomId, socketId) {
     const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
     const roomData = await this.redisClient.hGetAll(roomKey);
     
-    if (!roomData.players) return null;
-
     let players = JSON.parse(roomData.players);
-    players = players.filter(p => p.id !== playerId);
+    // Utiliser socketId au lieu de id
+    players = players.filter(p => p.socketId !== socketId);
 
     if (players.length === 0) {
-      await this.redisClient.del(roomKey);
-      return null;
+        await this.redisClient.del(roomKey);
+        return null;
     }
 
+    // Réattribuer le leader si nécessaire
     if (!players.some(p => p.isLeader) && players.length > 0) {
-      // Convertir en Player pour utiliser les méthodes
-      const leaderPlayer = new Player(players[0].name, roomId);
-      leaderPlayer.setSocketId(players[0].id);
-      leaderPlayer.setLeader(true);
-      players[0] = leaderPlayer.toJSON();
+        players[0].isLeader = true;
     }
 
     await this.redisClient.hSet(roomKey, 'players', JSON.stringify(players));
     return {
-      roomId,
-      players,
-      isPlaying: roomData.isPlaying === 'true'
+        roomId,
+        players,
+        isPlaying: roomData.isPlaying === 'true'
     };
-  }
+}
 
   // Récupère l'état actuel d'une partie
   async getGameState(roomId) {
