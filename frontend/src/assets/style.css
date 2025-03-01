@@ -1,0 +1,15 @@
+:root {
+  --primary-color: #731edf;
+  --text-color: #d8d5ce;
+  --button-bg: #d8d5ce;
+  --button-text: #731edf;
+  --button-hover-bg: #bfb8ae;
+}
+
+body {
+  background-color: var(--primary-color);
+  color: var(--text-color);
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+}
