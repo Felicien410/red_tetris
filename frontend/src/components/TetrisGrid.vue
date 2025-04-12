@@ -32,26 +32,26 @@ const cellClass = (value) => {
   display: grid;
   grid-template-rows: repeat(20, 1fr);
   gap: 1px;
-  border: 2px solid #888;
   aspect-ratio: 10 / 20;
-  width: 300px;
+  width: 23vw;
+  height: auto;
   background: #222;
 }
 
 .row {
   display: grid;
   grid-template-columns: repeat(10, 1fr);
+  gap: 1px;
 }
 
 .cell {
   width: 100%;
   aspect-ratio: 1 / 1;
   background: #111;
-  border: 1px solid #333;
 }
 
 .cell.empty {
-  background: #567;
+  background: #111;
 }
 
 .cell.filled-1 {

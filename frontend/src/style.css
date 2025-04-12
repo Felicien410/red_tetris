@@ -1,7 +1,7 @@
 /* src/style.css */
 
 :root {
-  --primary-color: #6a0dad;
+  --primary-color: linear-gradient(to right, #a066c9, #6f2c91);
   --primary-light: #a066c9;
   --text-color: #fff;
   --font-family: "Segoe UI", sans-serif;

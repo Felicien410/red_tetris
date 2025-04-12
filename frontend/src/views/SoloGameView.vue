@@ -18,9 +18,10 @@ const grid = ref(createEmptyGrid());
 <style scoped>
 .solo-container {
   height: 100vh;
-  background: #111;
+  width: 100vw;
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 </style>
