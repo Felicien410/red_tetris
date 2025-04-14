@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Tetris Debug View</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        .game-container {
+            display: flex;
+            padding: 20px;
+            font-family: monospace;
+            background: #f0f0f0;
+        }
+
+        .board {
+            background: #000;
+            padding: 10px;
+            margin-right: 20px;
+        }
+
+        .row {
+            display: flex;
+        }
+
+        .cell {
+            width: 20px;
+            height: 20px;
+            border: 1px solid #333;
+            margin: 1px;
+        }
+
+        .filled {
+            background: #4CAF50;
+        }
+
+        .debug-panel {
+            background: #fff;
+            padding: 20px;
+            border: 1px solid #ccc;
+            min-width: 300px;
+        }
+
+        .event-log {
+            height: 200px;
+            overflow-y: auto;
+            background: #f8f8f8;
+            padding: 10px;
+            margin-top: 10px;
+            border: 1px solid #ddd;
+        }
+
+        .piece-I { background-color: cyan; }
+        .piece-O { background-color: yellow; }
+        .piece-T { background-color: purple; }
+        .piece-S { background-color: green; }
+        .piece-Z { background-color: red; }
+        .piece-J { background-color: blue; }
+        .piece-L { background-color: orange; }
+
+        .controls-group {
+            margin-top: 15px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .debug-info {
+            font-family: monospace;
+            white-space: pre-wrap;
+            margin-top: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <div class="board" id="gameBoard"></div>
+        <div class="debug-panel">
+            <h3>Debug Controls</h3>
+            
+            <div class="controls-group">
+                <h4>Connection</h4>
+                <input type="text" id="playerName" placeholder="Player Name">
+                <input type="text" id="roomId" placeholder="Room ID">
+                <button onclick="joinGame()">Join Game</button>
+            </div>
+
+            <div class="controls-group">
+                <h4>Game Controls</h4>
+                <button onclick="startGame()">Start Game</button>
+                <button onclick="moveLeft()">←</button>
+                <button onclick="moveRight()">→</button>
+                <button onclick="moveDown()">↓</button>
+                <button onclick="rotate()">Rotate</button>
+                <button onclick="hardDrop()">Hard Drop</button>
+            </div>
+
+            <div class="controls-group">
+                <h4>Current Piece Info:</h4>
+                <div id="pieceInfo" class="debug-info">No piece info available</div>
+            </div>
+
+            <div class="controls-group">
+                <h4>Game State:</h4>
+                <pre id="gameState" class="debug-info">En attente de connexion...</pre>
+            </div>
+
+            <div class="controls-group">
+                <h4>Event Log:</h4>
+                <div id="eventLog" class="event-log"></div>
+            </div>
+
+            <div class="controls-group">
+                <h4>User info:</h4>
+                <pre id="userInfo" class="debug-info">No user info available</pre>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentPiece = null;
+        let firstUpdateReceived = false;
+        const socket = io('http://localhost:3000');
+        let currentRoom = '';
+        let userData = null;
+
+        function createEmptyBoard() {
+            const board = document.getElementById('gameBoard');
+            board.innerHTML = '';
+            for (let i = 0; i < 20; i++) {
+                const row = document.createElement('div');
+                row.className = 'row';
+                for (let j = 0; j < 10; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.id = `cell-${i}-${j}`;
+                    row.appendChild(cell);
+                }
+                board.appendChild(row);
+            }
+        }
+
+        function logEvent(message) {
+            const log = document.getElementById('eventLog');
+            const entry = document.createElement('div');
+            entry.textContent = `${new Date().toLocaleTimeString()} - ${message}`;
+            log.insertBefore(entry, log.firstChild);
+            console.log(message);
+        }
+
+        function updatePieceInfo(piece) {
+            const pieceInfo = document.getElementById('pieceInfo');
+            if (piece) {
+                pieceInfo.textContent = JSON.stringify(piece, null, 2);
+            } else {
+                pieceInfo.textContent = "No piece info available";
+            }
+        }
+
+        function updateUserInfo(data) {
+            const userInfo = document.getElementById('userInfo');
+            if (data) {
+                const displayData = {
+                    Joueur: data.playerName,
+                    ID: data.playerId,
+                    Room: data.roomId,
+                    Leader: data.isLeader ? 'Oui' : 'Non',
+                    'En jeu': data.isPlaying ? 'Oui' : 'Non',
+                    'Blocs placés': data.blocksPlaced 
+                };
+                userInfo.textContent = JSON.stringify(displayData, null, 2);
+            } else {
+                userInfo.textContent = "Non connecté";
+            }
+        }
+
+        function updateBoard(gameState) {
+            if (!gameState || !gameState.gameState || !gameState.gameState.board) {
+                console.error('Données de jeu invalides:', gameState);
+                return;
+            }
+
+            const board = gameState.gameState.board;
+            let currentPieceData = gameState.gameState.currentPiece;
+
+            if (currentPieceData && !firstUpdateReceived) {
+                if (currentPiece) {
+                    currentPieceData.type = currentPiece.type;
+                    currentPieceData.shape = currentPiece.shape;
+                }
+                firstUpdateReceived = true;
+            }
+
+            currentPiece = currentPieceData;
+            updatePieceInfo(currentPiece);
+
+            board.forEach((row, i) => {
+                row.forEach((cell, j) => {
+                    const cellElement = document.getElementById(`cell-${i}-${j}`);
+                    if (cell !== 0) {
+                        cellElement.className = `cell piece-${cell}`;
+                    } else {
+                        cellElement.className = 'cell';
+                    }
+                });
+            });
+
+            if (currentPiece) {
+                const pos = currentPiece.position;
+                const shape = currentPiece.shape;
+                
+                shape.forEach((row, y) => {
+                    row.forEach((cell, x) => {
+                        if (cell) {
+                            const boardY = pos.y + y;
+                            const boardX = pos.x + x;
+                            if (boardY >= 0 && boardY < 20 && boardX >= 0 && boardX < 10) {
+                                const cellElement = document.getElementById(`cell-${boardY}-${boardX}`);
+                                cellElement.className = `cell piece-${currentPiece.type}`;
+                            }
+                        }
+                    });
+                });
+            }
+
+            document.getElementById('gameState').textContent = JSON.stringify({
+                score: gameState.gameState.score,
+                level: gameState.gameState.level,
+                currentPiece: {
+                    type: currentPiece?.type,
+                    position: currentPiece?.position
+                }
+            }, null, 2);
+
+            // Mise à jour des infos utilisateur si présentes dans la réponse
+            if (userData && gameState.players) {
+                const currentPlayer = gameState.players.find(p => p.id === userData.playerId);
+                if (currentPlayer) {
+                    userData = {
+                        ...userData,
+                        blocksPlaced: currentPlayer.blocksPlaced || 0,
+                        isPlaying: gameState.isPlaying,
+                        isLeader: currentPlayer.isLeader
+                    };
+                    updateUserInfo(userData);
+                }
+            }
+        }
+
+        function joinGame() {
+            const playerName = document.getElementById('playerName').value;
+            const roomId = document.getElementById('roomId').value;
+            currentRoom = roomId;
+            firstUpdateReceived = false;
+            currentPiece = null;
+
+            socket.emit('init-player', {
+                pseudo: playerName,
+                room: roomId
+            });
+            logEvent(`Tentative de connexion: ${playerName} dans ${roomId}`);
+        }
+
+        function startGame() {
+            socket.emit('start-game', { room: currentRoom });
+            logEvent('Tentative de démarrage de la partie');
+            firstUpdateReceived = false;
+        }
+
+        function moveLeft() {
+            socket.emit('move-piece', { direction: 'left', roomId: currentRoom });
+        }
+
+        function moveRight() {
+            socket.emit('move-piece', { direction: 'right', roomId: currentRoom });
+        }
+
+        function moveDown() {
+            socket.emit('move-piece', { direction: 'down', roomId: currentRoom });
+        }
+
+        function rotate() {
+            socket.emit('rotate-piece', { roomId: currentRoom });
+        }
+
+        function hardDrop() {
+            socket.emit('hard-drop', { roomId: currentRoom });
+        }
+
+        socket.on('connect', () => {
+            logEvent('Connecté au serveur');
+            createEmptyBoard();
+        });
+
+        socket.on('joined-room', (data) => {
+            logEvent(`Joined room: ${data.room} as ${data.playerId}`);
+            const player = data.players.find(p => p.id === data.playerId);
+            userData = {
+                playerId: data.playerId,
+                playerName: document.getElementById('playerName').value,
+                roomId: data.room,
+                isLeader: player?.isLeader || false,
+                blocksPlaced: player?.blocksPlaced || 0
+            };
+            updateUserInfo(userData);
+        });
+
+        socket.on('room-update', (data) => {
+            logEvent(`Mise à jour de la room: ${JSON.stringify(data)}`);
+            if (userData && data.players) {
+                const currentPlayer = data.players.find(p => p.id === userData.playerId);
+                if (currentPlayer) {
+                    userData = {
+                        ...userData,
+                        isLeader: currentPlayer.isLeader,
+                        isPlaying: data.isPlaying,
+                        blocksPlaced: currentPlayer.blocksPlaced || 0
+                    };
+                    updateUserInfo(userData);
+                }
+            }
+        });
+
+        socket.on('game-started', (data) => {
+            logEvent('La partie commence!');
+            console.log('État initial:', data);
+            currentPiece = data.gameState.currentPiece;
+            firstUpdateReceived = false;
+            updateBoard(data);
+            document.querySelector('.debug-panel').style.backgroundColor = '#e8f5e9';
+            
+            if (userData) {
+                userData = {
+                    ...userData,
+                    isPlaying: true
+                };
+                updateUserInfo(userData);
+            }
+        });
+
+        socket.on('game-update', (data) => {
+            console.log('Mise à jour reçue:', data);
+            updateBoard(data);
+            
+            // Mise à jour des infos utilisateur si présentes dans la réponse
+            if (userData && data.players) {
+                const currentPlayer = data.players.find(p => p.id === userData.playerId);
+                if (currentPlayer) {
+                    userData = {
+                        ...userData,
+                        isPlaying: data.isPlaying,
+                        isLeader: currentPlayer.isLeader,
+                        blocksPlaced: currentPlayer.blocksPlaced || 0
+                    };
+                    updateUserInfo(userData);
+                }
+            }
+        });
+
+        socket.on('error', (error) => {
+            logEvent(`Erreur: ${error.message}`);
+        });
+
+        socket.on('disconnect', () => {
+            logEvent('Déconnecté du serveur');
+            userData = null;
+            updateUserInfo(null);
+        });
+    </script>
+</body>
+</html>
