@@ -1,10 +1,10 @@
 /* src/style.css */
 
 :root {
-  --primary-color: linear-gradient(to right, #a066c9, #6f2c91);
+  --primary-color: linear-gradient(to right, #ff9b71, #ea7e50);
   --primary-light: #a066c9;
   --text-color: #fff;
-  --font-family: "Segoe UI", sans-serif;
+  --font-family: "Roboto", sans-serif;
 }
 
 * {
