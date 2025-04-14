@@ -7,7 +7,7 @@ const path = require("path");
 const cors = require("cors");
 const LobbyService = require("./services/lobbyService");
 const GameLogicService = require("./services/gameLogicService");
-import dotenv from "dotenv";
+const dotenv = require("dotenv");
 
 const {
   setupMiddlewares,
