@@ -33,8 +33,8 @@ const cellClass = (value) => {
   grid-template-rows: repeat(20, 1fr);
   gap: 1px;
   aspect-ratio: 10 / 20;
-  width: 23vw;
-  height: auto;
+  height: 99vh;
+  width: auto;
   background: #222;
 }
 
