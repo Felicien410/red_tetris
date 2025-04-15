@@ -19,17 +19,37 @@ const grid = ref(createEmptyGrid());
 
 onMounted(() => {
   const pseudo = localStorage.getItem("pseudo");
-  const room = "solo-" + pseudo;
-  socket.emit("connect-player", { pseudo });
-  socket.on("room-created", (roomId, playerId) => {
-    console.log("🎉 Room created :", roomId);
-    console.log("👤 Player ID :", playerId);
+
+  if (!pseudo) {
+    console.error(
+      "❌ Pseudo not found in localStorage. Cannot initialize player.",
+    );
+    return;
+  }
+
+  socket.on("connect", () => {
+    console.log("✅ Connected to server");
+
+    const room = `solo-${pseudo}`;
+    socket.emit("init-player", { pseudo });
+
+    socket.on("room-update", (roomData) => {
+      console.log("🛠️ Room updated:", roomData);
+    });
+
+    socket.emit("join-room", 1, { pseudo });
+
+    socket.on("joined-room", (roomData) => {
+      console.log("😄 Joined room:", roomData);
+    });
+
+    socket.on("error", (error) => {
+      console.error("❌ Socket error:", error.message);
+    });
   });
-  socket.on("room-update", (roomId, grid) => {
-    console.log("🛠️ Room updated :", roomId);
-  });
-  socket.on("error", (error) => {
-    console.error("❌ Socket erreur:", error.message);
+
+  socket.on("connect_error", (err) => {
+    console.error("❌ Connection error:", err.message);
   });
 });
 </script>

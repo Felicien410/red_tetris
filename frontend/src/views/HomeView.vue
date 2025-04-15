@@ -26,7 +26,7 @@ const router = useRouter();
 
 const startSolo = () => {
   if (!pseudo.value.trim()) {
-    alert("Veuillez entrer un pseudo");
+    alert("Please enter a pseudo");
     return;
   }
   localStorage.setItem("pseudo", pseudo.value);
@@ -35,7 +35,7 @@ const startSolo = () => {
 
 const startMultiplayer = () => {
   if (!pseudo.value.trim()) {
-    alert("Veuillez entrer un pseudo");
+    alert("Please enter a pseudo");
     return;
   }
   localStorage.setItem("pseudo", pseudo.value);
