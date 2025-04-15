@@ -1,9 +1,31 @@
 <!-- src/views/SoloGameView.vue -->
 <!-- HTML -->
 <template>
-  <div class="solo-container">
-    <TetrisGrid :grid="grid" />
-  </div>
+  <v-container class="solo-container" pa-0 fluid>
+    <v-row align="center" justify="center">
+      <v-col cols="12" md="8" lg="6">
+        <TetrisGrid :grid="grid" />
+      </v-col>
+
+      <v-col
+        cols="12"
+        md="4"
+        lg="3"
+        class="d-flex flex-column align-center justify-start"
+      >
+        <v-btn class="mb-4 start-btn" @click="startGame" variant="elevated">
+          Start
+        </v-btn>
+
+        <v-card class="next-piece-card" outlined>
+          <v-card-title class="text-h6 text-center">Next Piece</v-card-title>
+          <v-card-text class="d-flex align-center justify-center">
+            <div class="next-piece-display">?</div>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
+  </v-container>
 </template>
 
 <!-- JavaScript -->
@@ -12,35 +34,38 @@ import { onMounted, ref } from "vue";
 import { io } from "socket.io-client";
 import TetrisGrid from "@/components/TetrisGrid.vue";
 
+// Socket.io client
 const socket = io("http://localhost:3000");
+const pseudo = localStorage.getItem("pseudo");
+const room = `solo-${pseudo}`;
+
+// Grid for Tetris game
 const createEmptyGrid = () =>
   Array.from({ length: 20 }, () => Array(10).fill(0));
 const grid = ref(createEmptyGrid());
 
+// Start game function
+const startGame = () => {
+  socket.emit("start-game", { roomId: room, playerName: pseudo });
+};
+
 onMounted(() => {
-  const pseudo = localStorage.getItem("pseudo");
-
-  if (!pseudo) {
-    console.error(
-      "❌ Pseudo not found in localStorage. Cannot initialize player.",
-    );
-    return;
-  }
-
   socket.on("connect", () => {
     console.log("✅ Connected to server");
 
-    const room = `solo-${pseudo}`;
-    socket.emit("init-player", { pseudo });
+    socket.emit("init-player", { pseudo, room });
 
     socket.on("room-update", (roomData) => {
       console.log("🛠️ Room updated:", roomData);
     });
 
-    socket.emit("join-room", 1, { pseudo });
-
     socket.on("joined-room", (roomData) => {
-      console.log("😄 Joined room:", roomData);
+      console.log(
+        "😄 Joined room:",
+        roomData.room,
+        roomData.playerId,
+        roomData.players,
+      );
     });
 
     socket.on("error", (error) => {
@@ -63,5 +88,13 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+
+.start-btn {
+  background-color: var(--primary-light);
+  color: var(--text-color);
+  font-weight: bold;
+  width: 200px;
+  align-self: center;
 }
 </style>

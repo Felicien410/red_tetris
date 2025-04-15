@@ -54,11 +54,14 @@ function setupDebugRoute(app, redisClient) {
 
 // Configuration des routes principales
 function setupMainRoutes(app, redisClient, connectedSockets) {
+  console.log("Setting up main routes");
   app.get("/:room/:player_name", (req, res) => {
+    console.log("GET /:room/:player_name");
     res.sendFile(path.join(__dirname, "../public", "index.html"));
   });
 
   app.post("/:room/:player_name", async (req, res) => {
+    console.log("POST /:room/:player_name");
     const { room, player_name } = req.params;
 
     try {
@@ -116,9 +119,11 @@ function setupSocketHandlers(socket, server) {
       console.log("Init player:", data);
       const { pseudo, room } = data;
       const roomKey = `${REDIS_KEYS.GAME_PREFIX}${room}`;
+      console.log("Room key:", roomKey);
 
       const roomExists = await server.redisClient.exists(roomKey);
       if (!roomExists) {
+        console.log("Room does not exist, creating new room");
         await server.LobbyService.createRoom(room, {
           id: socket.id,
           name: pseudo,
@@ -177,6 +182,7 @@ function setupSocketHandlers(socket, server) {
       if (!roomId) {
         throw new Error("Room ID is required");
       }
+      console.log("RoomId in start-game:", roomId);
 
       // 2. Vérification de l'existence de la room
       const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;

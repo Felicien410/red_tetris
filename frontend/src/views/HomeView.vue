@@ -1,5 +1,5 @@
 <template>
-  <v-container class="fill-height d-flex flex-column justify-start pa-6" fluid>
+  <v-container class="fill-height d-flex flex-column justify-start pa-6">
     <v-text-field
       v-model="pseudo"
       label="Enter your pseudo"
