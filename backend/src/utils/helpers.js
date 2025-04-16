@@ -252,7 +252,7 @@ function setupSocketHandlers(socket, server) {
         `Game started in room ${roomId} with ${players.length} players`,
       );
     } catch (error) {
-      console.error("Erreur lors du démarrage:", error);
+      console.error("Error starting game:", error);
       socket.emit("error", { message: error.message });
     }
   });
@@ -321,6 +321,11 @@ function startPlayerGameLoop(roomId, playerId, server) {
 }
 
 function stopGameLoop(roomId, playerId, server) {
+  if (!server || !server.gameIntervals) {
+    console.error("Server or gameIntervals is not defined");
+    return;
+  }
+
   const interval = server.gameIntervals.get(`${roomId}-${playerId}`);
   if (interval) {
     clearInterval(interval);
@@ -388,4 +393,3 @@ module.exports = {
   cleanupRoom,
   cleanupAllRooms,
 };
-

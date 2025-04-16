@@ -34,7 +34,6 @@ import { onMounted, ref } from "vue";
 import { io } from "socket.io-client";
 import TetrisGrid from "@/components/TetrisGrid.vue";
 
-// Socket.io client
 const socket = io("http://localhost:3000");
 const pseudo = localStorage.getItem("pseudo");
 const room = `solo-${pseudo}`;
@@ -71,10 +70,6 @@ onMounted(() => {
     socket.on("error", (error) => {
       console.error("❌ Socket error:", error.message);
     });
-  });
-
-  socket.on("connect_error", (err) => {
-    console.error("❌ Connection error:", err.message);
   });
 });
 </script>
