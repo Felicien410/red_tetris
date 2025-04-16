@@ -20,7 +20,32 @@
         <v-card class="next-piece-card" outlined>
           <v-card-title class="text-h6 text-center">Next Piece</v-card-title>
           <v-card-text class="d-flex align-center justify-center">
-            <div class="next-piece-display">?</div>
+            <div class="next-piece-display">
+              <table v-if="nextPiece">
+                <tbody>
+                  <tr
+                    v-for="(row, rowIndex) in PIECE_SHAPES[nextPiece.type]"
+                    :key="rowIndex"
+                  >
+                    <td
+                      v-for="(cell, cellIndex) in row"
+                      :key="cellIndex"
+                      :style="{
+                        width: '20px',
+                        height: '20px',
+                        backgroundColor: cell
+                          ? PIECE_COLORS[nextPiece.type]
+                          : 'transparent',
+                        border: cell
+                          ? '1px solid #999'
+                          : '1px solid transparent',
+                      }"
+                    ></td>
+                  </tr>
+                </tbody>
+              </table>
+              <span v-else>?</span>
+            </div>
           </v-card-text>
         </v-card>
       </v-col>
@@ -33,6 +58,7 @@
 import { onMounted, ref } from "vue";
 import { io } from "socket.io-client";
 import TetrisGrid from "@/components/TetrisGrid.vue";
+import { PIECE_TYPES, PIECE_SHAPES, PIECE_COLORS } from "@/constants";
 
 const socket = io("http://localhost:3000");
 const pseudo = localStorage.getItem("pseudo");
@@ -41,7 +67,10 @@ const room = `solo-${pseudo}`;
 // Grid for Tetris game
 const createEmptyGrid = () =>
   Array.from({ length: 20 }, () => Array(10).fill(0));
+
 const grid = ref(createEmptyGrid());
+const nextPiece = ref(null);
+const currentPiece = ref(null);
 
 // Start game function
 const startGame = () => {
@@ -65,6 +94,12 @@ onMounted(() => {
         roomData.playerId,
         roomData.players,
       );
+    });
+
+    socket.on("game-started", (playerGameState) => {
+      console.log("🚀 Game started:", playerGameState);
+      nextPiece.value = playerGameState.gameState.currentPiece;
+      currentPiece.value = playerGameState.gameState.currentPiece;
     });
 
     socket.on("error", (error) => {
@@ -91,5 +126,15 @@ onMounted(() => {
   font-weight: bold;
   width: 200px;
   align-self: center;
+}
+
+.next-piece-display {
+  min-height: 100px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.next-piece-display table {
+  border-collapse: collapse;
 }
 </style>

@@ -297,9 +297,7 @@ function setupSocketHandlers(socket, server) {
 
 // Gestion des intervalles de jeu
 function startPlayerGameLoop(roomId, playerId, server) {
-  console.log(
-    `Démarrage de la boucle de jeu pour le joueur ${playerId} dans la room ${roomId}`,
-  );
+  console.log(`⭐ Starting loop for ${playerId}, Room ${roomId}`);
   const interval = setInterval(async () => {
     try {
       const gameUpdate = await server.gameLogicService.handleMove(
@@ -311,7 +309,7 @@ function startPlayerGameLoop(roomId, playerId, server) {
         server.io.to(playerId).emit("game-update", gameUpdate);
       }
     } catch (error) {
-      console.error("Erreur dans la boucle de jeu:", error);
+      console.error("Loop error:", error);
       clearInterval(interval);
       server.gameIntervals.delete(`${roomId}-${playerId}`);
     }

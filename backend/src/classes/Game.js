@@ -1,12 +1,19 @@
-const Piece = require('./Piece');
-const { BOARD, POINTS, PIECE_TYPES, REDIS_KEYS } = require('../config/constants');
+const Piece = require("./Piece");
+const {
+  BOARD,
+  POINTS,
+  PIECE_TYPES,
+  REDIS_KEYS,
+} = require("../config/constants");
 
 class Game {
   constructor(roomId, redisClient, playerId) {
     this.roomId = roomId;
     this.redisClient = redisClient;
     this.playerId = playerId;
-    this.board = Array(BOARD.HEIGHT).fill().map(() => Array(BOARD.WIDTH).fill(0));
+    this.board = Array(BOARD.HEIGHT)
+      .fill()
+      .map(() => Array(BOARD.WIDTH).fill(0));
     this.currentPiece = null;
     this.nextPiece = null;
     this.score = 0;
@@ -16,55 +23,59 @@ class Game {
     this.linesCleared = 0;
     this.isPaused = false;
     this.gameOver = false;
-    this.seed = '0';
+    this.seed = "0";
     this.playerBlocksPlaced = 0;
   }
 
   async generateNextPiece() {
-    console.log('Génération de la prochaine pièce', {
-        seed: this.seed,
-        blocksPlaced: this.playerBlocksPlaced
+    console.log("⏭️ Generating next piece:", {
+      seed: this.seed,
+      blocksPlaced: this.playerBlocksPlaced,
     });
 
     const hash = this.seed + this.playerBlocksPlaced.toString();
-    console.log('Hash:', hash);
+    console.log("Hash:", hash);
 
     // Algorithme de Knuth pour mélanger/distribuer les valeurs
     let value = 0;
     for (let i = 0; i < hash.length; i++) {
-        value = ((value << 5) + value) + hash.charCodeAt(i);
-        value = value & value; // Conversion en 32 bits
+      value = (value << 5) + value + hash.charCodeAt(i);
+      value = value & value; // Conversion en 32 bits
     }
 
     // On utilise plusieurs opérations pour rendre le résultat plus chaotique
     value = Math.abs(value);
     value = (value * 48271) % 2147483647; // Nombres premiers pour plus de randomisation
-    value = ((value * value) + value) % PIECE_TYPES.length;
+    value = (value * value + value) % PIECE_TYPES.length;
 
     const pieceType = PIECE_TYPES[value];
-    console.log('Type de pièce généré:', pieceType);
-    
+    console.log("🧩 Type generated:", pieceType);
+
     return new Piece(pieceType);
-}
+  }
 
   async updateBlocksPlaced(blockCount) {
     // Mise à jour du compteur local
     this.playerBlocksPlaced += 1;
-    
+
     // Mise à jour dans Redis
     const roomKey = `${REDIS_KEYS.GAME_PREFIX}${this.roomId}`;
-    const playersData = await this.redisClient.hGet(roomKey, 'players');
-    
+    const playersData = await this.redisClient.hGet(roomKey, "players");
+
     if (playersData) {
       const players = JSON.parse(playersData);
-      const playerIndex = players.findIndex(p => p.id === this.playerId);
+      const playerIndex = players.findIndex((p) => p.id === this.playerId);
       if (playerIndex !== -1) {
         players[playerIndex].blocksPlaced = this.playerBlocksPlaced;
-        await this.redisClient.hSet(roomKey, 'players', JSON.stringify(players));
+        await this.redisClient.hSet(
+          roomKey,
+          "players",
+          JSON.stringify(players),
+        );
       }
     }
 
-    console.log('Nombre total de blocs placés:', this.playerBlocksPlaced);
+    console.log("Nombre total de blocs placés:", this.playerBlocksPlaced);
     return this.playerBlocksPlaced;
   }
 
@@ -92,27 +103,26 @@ class Game {
   }
 
   async spawnPiece() {
-    console.log('Apparition d\'une nouvelle pièce');
-    console.log('Blocks placed:', this.playerBlocksPlaced);
-  
+    console.log("🧱 Creating new piece");
+    console.log("Blocks placed:", this.playerBlocksPlaced);
+
     // Génère une nouvelle pièce directement
     const pieceType = await this.generateNextPiece();
-    
+
     this.currentPiece = new Piece(pieceType.type);
     this.currentPiece.position = {
       x: Math.floor(BOARD.WIDTH / 2) - 1,
-      y: 0
+      y: 0,
     };
-  
+
     if (this.checkCollision(this.currentPiece)) {
       this.gameOver = true;
       this.isPlaying = false;
       return false;
     }
-  
+
     return true;
   }
-
 
   // Déplace la pièce courante
   async movePiece(direction) {
@@ -121,7 +131,7 @@ class Game {
     const movements = {
       left: { x: -1, y: 0 },
       right: { x: 1, y: 0 },
-      down: { x: 0, y: 1 }
+      down: { x: 0, y: 1 },
     };
 
     const move = movements[direction];
@@ -137,22 +147,25 @@ class Game {
       this.currentPiece.position.x = oldX;
       this.currentPiece.position.y = oldY;
 
-      if (direction === 'down') {
-        console.log('Verrouillage de la pièce');
+      if (direction === "down") {
+        console.log("Verrouillage de la pièce");
         // Verrouillez d'abord la pièce et mettez à jour le compteur
         await this.lockPiece();
         const linesCleared = this.clearLines();
-        
-        console.log('Blocks placed après verrouillage:', this.playerBlocksPlaced);
-        
+
+        console.log(
+          "Blocks placed après verrouillage:",
+          this.playerBlocksPlaced,
+        );
+
         // Générez la prochaine pièce seulement après la mise à jour du compteur
         const spawnSuccess = await this.spawnPiece();
-        
+
         if (!spawnSuccess) {
           this.gameOver = true;
           this.isPlaying = false;
         }
-        
+
         return { locked: true, linesCleared };
       }
       return false;
@@ -160,7 +173,7 @@ class Game {
 
     return true;
   }
-  
+
   // Fait tourner la pièce courante
   rotatePiece() {
     if (!this.currentPiece || !this.isPlaying || this.isPaused) return false;
@@ -174,27 +187,27 @@ class Game {
 
     // Si la rotation cause une collision, essaie de décaler la pièce
     if (this.checkCollision(this.currentPiece)) {
-        // Essaie de décaler à gauche
-        this.currentPiece.position.x -= 1;
+      // Essaie de décaler à gauche
+      this.currentPiece.position.x -= 1;
+      if (this.checkCollision(this.currentPiece)) {
+        // Essaie de décaler à droite
+        this.currentPiece.position.x += 2;
         if (this.checkCollision(this.currentPiece)) {
-            // Essaie de décaler à droite
-            this.currentPiece.position.x += 2;
-            if (this.checkCollision(this.currentPiece)) {
-                // Si rien ne marche, annule la rotation
-                this.currentPiece.position.x -= 1;
-                this.currentPiece.shape = originalShape;
-                this.currentPiece.rotation = originalRotation;
-                return false;
-            }
+          // Si rien ne marche, annule la rotation
+          this.currentPiece.position.x -= 1;
+          this.currentPiece.shape = originalShape;
+          this.currentPiece.rotation = originalRotation;
+          return false;
         }
+      }
     }
     return true;
-}
+  }
   // Vérifie les collisions d'une pièce
   checkCollision(piece) {
     if (!piece || !piece.shape) {
-        console.error('Pièce invalide dans checkCollision:', piece);
-        return true;
+      console.error("Pièce invalide dans checkCollision:", piece);
+      return true;
     }
 
     const shape = Array.isArray(piece.shape) ? piece.shape : piece.getShape();
@@ -203,35 +216,38 @@ class Game {
     // Vérifie les collisions avec le plateau et les bordures
     for (let y = 0; y < shape.length; y++) {
       // Vérifie chaque cellule de la pièce
-        for (let x = 0; x < shape[y].length; x++) {
-          // Vérifie si la cellule est occupée
-            if (shape[y][x]) {
-                const boardX = pos.x + x;
-                const boardY = pos.y + y;
+      for (let x = 0; x < shape[y].length; x++) {
+        // Vérifie si la cellule est occupée
+        if (shape[y][x]) {
+          const boardX = pos.x + x;
+          const boardY = pos.y + y;
 
-      // Conditions de collision :
-      // 1. La pièce dépasse le bord gauche (boardX < 0) ou droit (boardX >= BOARD.WIDTH)
-      // 2. La pièce dépasse le bas du plateau (boardY >= BOARD.HEIGHT)
-      // 3. La cellule du plateau à cette position est déjà occupée (this.board[boardY][boardX])       
+          // Conditions de collision :
+          // 1. La pièce dépasse le bord gauche (boardX < 0) ou droit (boardX >= BOARD.WIDTH)
+          // 2. La pièce dépasse le bas du plateau (boardY >= BOARD.HEIGHT)
+          // 3. La cellule du plateau à cette position est déjà occupée (this.board[boardY][boardX])
 
-                if (boardX < 0 || boardX >= BOARD.WIDTH || 
-                    boardY >= BOARD.HEIGHT ||
-                    (boardY >= 0 && this.board[boardY][boardX])) {
-                    return true;
-                }
-            }
+          if (
+            boardX < 0 ||
+            boardX >= BOARD.WIDTH ||
+            boardY >= BOARD.HEIGHT ||
+            (boardY >= 0 && this.board[boardY][boardX])
+          ) {
+            return true;
+          }
         }
+      }
     }
     return false;
-}
-  
+  }
+
   // Vérifie et efface les lignes complètes
   clearLines() {
     let linesCleared = 0;
     // iteration a partir du bas du tableau
     for (let row = BOARD.HEIGHT - 1; row >= 0; row--) {
       //si chaque cellule == 1 alors on efface la ligne
-      if (this.board[row].every(cell => cell !== 0)) {
+      if (this.board[row].every((cell) => cell !== 0)) {
         //enlever la ligne
         this.board.splice(row, 1);
         //creer une nouvelle ligne vide en haut
@@ -240,13 +256,13 @@ class Game {
         row++; // Revérifie la même position
       }
     }
-    
+
     if (linesCleared > 0) {
       this.updateScore(linesCleared);
       this.linesCleared += linesCleared;
       this.updateLevel();
     }
-    
+
     return linesCleared;
   }
 
@@ -256,7 +272,7 @@ class Game {
       1: POINTS.SINGLE,
       2: POINTS.DOUBLE,
       3: POINTS.TRIPLE,
-      4: POINTS.TETRIS
+      4: POINTS.TETRIS,
     };
     this.score += (scores[linesCleared] || 0) * this.level;
     return this;
@@ -265,7 +281,7 @@ class Game {
   // Met à jour le niveau et la vitesse du jeu
   updateLevel() {
     this.level = Math.floor(this.linesCleared / 10) + 1;
-    this.gameSpeed = Math.max(100, 1000 - ((this.level - 1) * 100));
+    this.gameSpeed = Math.max(100, 1000 - (this.level - 1) * 100);
     return this;
   }
 
@@ -281,10 +297,10 @@ class Game {
       isPaused: this.isPaused,
       gameOver: this.gameOver,
       linesCleared: this.linesCleared,
-      gameSpeed: this.gameSpeed
+      gameSpeed: this.gameSpeed,
     };
   }
-
 }
 
 module.exports = Game;
+
