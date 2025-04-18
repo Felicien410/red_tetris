@@ -18,7 +18,12 @@
         </v-btn>
 
         <v-card class="next-piece-card" outlined>
-          <v-card-title class="text-h6 text-center">Next Piece</v-card-title>
+          <v-card-title
+            class="text-h6 text-center"
+            style="font-weight: bold; color: var(--text-color)"
+          >
+            Next Piece
+          </v-card-title>
           <v-card-text class="d-flex align-center justify-center">
             <div class="next-piece-display">
               <table v-if="nextPiece">
@@ -121,11 +126,30 @@ onMounted(() => {
 }
 
 .start-btn {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
   background-color: var(--primary-light);
   color: var(--text-color);
   font-weight: bold;
   width: 200px;
   align-self: center;
+  box-shadow: 0 8px 40px rgba(0, 255, 255, 0.2);
+  transform: scale(1.02);
+}
+.start-btn:hover {
+  box-shadow: 0 8px 40px rgba(0, 255, 255, 0.2);
+  transform: scale(1.02);
+}
+
+.next-piece-card {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  overflow: hidden;
 }
 
 .next-piece-display {
