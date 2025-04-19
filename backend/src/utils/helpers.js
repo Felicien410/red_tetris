@@ -75,8 +75,8 @@ function setupMainRoutes(app, redisClient, connectedSockets) {
 
         // Nettoyage des joueurs déconnectés
         players = players.filter((p) => {
-          const isConnected = connectedSockets.has(p.id);
-          return !p.id || isConnected;
+          const isConnected = p.id && connectedSockets.has(p.id);
+          return isConnected;
         });
 
         if (players.length >= MAX_PLAYERS) {
@@ -339,6 +339,7 @@ async function cleanupRoom(roomId, socketId, server) {
     const roomData = await server.redisClient.hGetAll(roomKey);
 
     if (roomData.players) {
+      console.log("Cleaning room:", roomId);
       let players = JSON.parse(roomData.players);
       players = players.filter((p) => p.id !== socketId);
 

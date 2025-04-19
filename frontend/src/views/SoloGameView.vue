@@ -4,7 +4,7 @@
   <v-container class="solo-container" pa-0 fluid>
     <v-row align="center" justify="center">
       <v-col cols="12" md="8" lg="6">
-        <TetrisGrid :grid="board" />
+        <TetrisGrid :grid="displayBoard" />
       </v-col>
 
       <v-col
@@ -60,7 +60,7 @@
 
 <!-- JavaScript -->
 <script setup>
-import { onMounted, ref } from "vue";
+import { onMounted, onBeforeUnmount, ref, computed } from "vue";
 import { io } from "socket.io-client";
 import TetrisGrid from "@/components/TetrisGrid.vue";
 import { PIECE_TYPES, PIECE_SHAPES, PIECE_COLORS } from "@/constants";
@@ -94,7 +94,7 @@ async function joinRoom(room, pseudo) {
 const createEmptyGrid = () =>
   Array.from({ length: 20 }, () => Array(10).fill(0));
 
-const board = ref(createEmptyGrid());
+const rawBoard = ref(createEmptyGrid());
 const nextPiece = ref(null);
 const currentPiece = ref(null);
 
@@ -104,14 +104,15 @@ const startGame = () => {
 };
 
 // Update board with game state
-function updateBoard(gameState) {
+const displayBoard = computed(() => {
   console.log("Updating board");
+  if (!rawBoard.value || !currentPiece.value) {
+    return rawBoard.value;
+  }
   // Clone the server's board state to avoid direct mutation
-  const newBoard = gameState.gameState.board.map((row) => [...row]);
-  console.log("🚀 Current piece placement:");
-  console.table(newBoard.map((row) => row.join("")));
-  const { shape, position, type } = gameState.gameState.currentPiece;
-  console.log("🧱 Shape:", shape);
+  const boardCopy = rawBoard.value.map((row) => [...row]);
+  console.table(boardCopy.map((row) => row.join("")));
+  const { shape, position, type } = currentPiece.value;
   shape.forEach((row, y) => {
     row.forEach((cell, x) => {
       if (cell) {
@@ -119,17 +120,17 @@ function updateBoard(gameState) {
         const boardX = x + position.x;
         if (
           boardY >= 0 &&
-          boardY < newBoard.length &&
+          boardY < boardCopy.length &&
           boardX >= 0 &&
-          boardX < newBoard[0].length
+          boardX < boardCopy[0].length
         ) {
-          newBoard[boardY][boardX] = type;
+          boardCopy[boardY][boardX] = type;
         }
       }
     });
   });
-  board.value = newBoard;
-}
+  return boardCopy;
+});
 
 onMounted(() => {
   socket.on("connect", async () => {
@@ -154,19 +155,22 @@ onMounted(() => {
     console.log("🚀 Game started:", gameState);
     nextPiece.value = gameState.gameState.currentPiece;
     currentPiece.value = gameState.gameState.currentPiece;
-    updateBoard(gameState);
   });
 
   socket.on("game-update", (gameState) => {
     console.log("🕹️ Game state updated:", gameState);
-    updateBoard(gameState);
-    // board.value = gameState.board;
-    // nextPiece.value = gameState.nextPiece;
+    rawBoard.value = gameState.gameState.board;
+    currentPiece.value = gameState.gameState.currentPiece;
   });
 
   socket.on("error", (error) => {
     console.error("❌ Socket error:", error.message);
   });
+});
+
+onBeforeUnmount(() => {
+  console.log("👋 Disconnected from server");
+  socket.disconnect();
 });
 </script>
 
