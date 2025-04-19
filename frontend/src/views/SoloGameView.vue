@@ -13,7 +13,11 @@
         lg="3"
         class="d-flex flex-column align-center justify-start"
       >
-        <v-btn class="mb-4 start-btn" @click="startGame" variant="elevated">
+        <v-btn
+          class="mb-4 start-btn"
+          @click="startGameClick"
+          variant="elevated"
+        >
           Start
         </v-btn>
 
@@ -61,47 +65,24 @@
 <!-- JavaScript -->
 <script setup>
 import { onMounted, onBeforeUnmount, ref, computed } from "vue";
-import { io } from "socket.io-client";
+import { useSocket } from "@/middleware/useSocket";
 import TetrisGrid from "@/components/TetrisGrid.vue";
 import { PIECE_TYPES, PIECE_SHAPES, PIECE_COLORS } from "@/constants";
 
-const socket = io("http://localhost:3000");
+const {
+  rawBoard,
+  currentPiece,
+  nextPiece,
+  isConnected,
+  connectToRoom,
+  startGame,
+  onGameStarted,
+  onGameUpdate,
+  disconnect,
+} = useSocket();
+
 const pseudo = localStorage.getItem("pseudo");
 const room = `solo-${pseudo}`;
-
-// Join the room via REST API
-async function joinRoom(room, pseudo) {
-  try {
-    const response = await fetch(`http://localhost:3000/${room}/${pseudo}`, {
-      method: "POST",
-    });
-    if (!response.ok) {
-      const err = await response.json();
-      throw new Error(err.error);
-    }
-
-    const data = await response.json();
-    console.log("✅ Joined room via REST:", data);
-
-    // Player is now in Redis, we can initiate the socket connection
-    socket.emit("init-player", { pseudo, room });
-  } catch (error) {
-    console.error("❌ Error joining room:", error);
-  }
-}
-
-// Grid for Tetris game
-const createEmptyGrid = () =>
-  Array.from({ length: 20 }, () => Array(10).fill(0));
-
-const rawBoard = ref(createEmptyGrid());
-const nextPiece = ref(null);
-const currentPiece = ref(null);
-
-// Start game function
-const startGame = () => {
-  socket.emit("start-game", { roomId: room, playerName: pseudo });
-};
 
 // Update board with game state
 const displayBoard = computed(() => {
@@ -132,46 +113,32 @@ const displayBoard = computed(() => {
   return boardCopy;
 });
 
-onMounted(() => {
-  socket.on("connect", async () => {
-    console.log("✅ Connected to server");
-    await joinRoom(room, pseudo);
-  });
+onMounted(async () => {
+  try {
+    await connectToRoom(room, pseudo);
+    console.log("👋 Connected to room:", room);
+  } catch (e) {
+    alert(e.message);
+  }
 
-  socket.on("room-update", (roomData) => {
-    console.log("🛠️ Room updated:", roomData);
-  });
-
-  socket.on("joined-room", (roomData) => {
-    console.log(
-      "😄 Joined room:",
-      roomData.room,
-      roomData.playerId,
-      roomData.players,
-    );
-  });
-
-  socket.on("game-started", (gameState) => {
+  onGameStarted((gameState) => {
     console.log("🚀 Game started:", gameState);
-    nextPiece.value = gameState.gameState.currentPiece;
-    currentPiece.value = gameState.gameState.currentPiece;
   });
 
-  socket.on("game-update", (gameState) => {
-    console.log("🕹️ Game state updated:", gameState);
-    rawBoard.value = gameState.gameState.board;
-    currentPiece.value = gameState.gameState.currentPiece;
-  });
-
-  socket.on("error", (error) => {
-    console.error("❌ Socket error:", error.message);
+  onGameUpdate((gameState) => {
+    console.log("🕹️ Game update:", gameState);
   });
 });
 
 onBeforeUnmount(() => {
+  disconnect();
   console.log("👋 Disconnected from server");
-  socket.disconnect();
 });
+
+const startGameClick = () => {
+  startGame(room, pseudo);
+  console.log("🚀 Game started");
+};
 </script>
 
 <!-- CSS -->
