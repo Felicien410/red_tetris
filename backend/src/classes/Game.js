@@ -90,6 +90,11 @@ class Game {
           const boardY = pos.y + y;
           const boardX = pos.x + x;
           if (boardY >= 0) {
+            console.log("Locking piece in board:", {
+              y: boardY,
+              x: boardX,
+              type: this.currentPiece.type,
+            });
             this.board[boardY][boardX] = this.currentPiece.type;
             blockCount++;
           }
@@ -148,13 +153,13 @@ class Game {
       this.currentPiece.position.y = oldY;
 
       if (direction === "down") {
-        console.log("Verrouillage de la pièce");
+        console.log("Locking piece at bottom");
         // Verrouillez d'abord la pièce et mettez à jour le compteur
         await this.lockPiece();
         const linesCleared = this.clearLines();
 
         console.log(
-          "Blocks placed après verrouillage:",
+          "Number of blocks placed after locking:",
           this.playerBlocksPlaced,
         );
 
@@ -170,7 +175,6 @@ class Game {
       }
       return false;
     }
-
     return true;
   }
 
@@ -303,4 +307,3 @@ class Game {
 }
 
 module.exports = Game;
-

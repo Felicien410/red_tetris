@@ -134,4 +134,3 @@ class GameLogicService {
 }
 
 module.exports = GameLogicService;
-

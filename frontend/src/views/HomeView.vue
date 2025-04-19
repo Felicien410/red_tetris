@@ -13,7 +13,9 @@
       <v-btn color="secondary" @click="startMultiplayer">Multi</v-btn>
     </div>
 
-    <h1 class="mt-12">Welcome to Tetris!</h1>
+    <div class="d-flex gap-4 mt-12 welcome-card">
+      <h1>Welcome to Tetris!</h1>
+    </div>
   </v-container>
 </template>
 
@@ -45,7 +47,17 @@ const startMultiplayer = () => {
 
 <style scoped>
 .custom-text-field :deep(.v-field) {
-  background-color: var(--primary-light);
+  background-color: var(--secondary-color);
   border-radius: 8px;
+}
+
+.welcome-card {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 32px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
 }
 </style>

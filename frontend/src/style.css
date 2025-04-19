@@ -2,6 +2,7 @@
 
 :root {
   --primary-color: linear-gradient(to right, #ff9b71, #ea7e50);
+  --secondary-color: #4c8af5;
   --primary-light: #a066c9;
   --text-color: #fff;
   --font-family: "Roboto", sans-serif;

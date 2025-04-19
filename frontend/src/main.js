@@ -18,8 +18,8 @@ const vuetify = createVuetify({
       customTheme: {
         dark: false,
         colors: {
-          primary: "#a066c9",
-          secondary: "#6f2c91",
+          primary: "#4C55F5",
+          secondary: "#4c8af5",
           background: "#fff",
           surface: "#fff",
           onPrimary: "#ffffff",

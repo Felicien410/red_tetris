@@ -69,6 +69,27 @@ const socket = io("http://localhost:3000");
 const pseudo = localStorage.getItem("pseudo");
 const room = `solo-${pseudo}`;
 
+// Join the room via REST API
+async function joinRoom(room, pseudo) {
+  try {
+    const response = await fetch(`http://localhost:3000/${room}/${pseudo}`, {
+      method: "POST",
+    });
+    if (!response.ok) {
+      const err = await response.json();
+      throw new Error(err.error);
+    }
+
+    const data = await response.json();
+    console.log("✅ Joined room via REST:", data);
+
+    // Player is now in Redis, we can initiate the socket connection
+    socket.emit("init-player", { pseudo, room });
+  } catch (error) {
+    console.error("❌ Error joining room:", error);
+  }
+}
+
 // Grid for Tetris game
 const createEmptyGrid = () =>
   Array.from({ length: 20 }, () => Array(10).fill(0));
@@ -111,41 +132,40 @@ function updateBoard(gameState) {
 }
 
 onMounted(() => {
-  socket.on("connect", () => {
+  socket.on("connect", async () => {
     console.log("✅ Connected to server");
+    await joinRoom(room, pseudo);
+  });
 
-    socket.emit("init-player", { pseudo, room });
+  socket.on("room-update", (roomData) => {
+    console.log("🛠️ Room updated:", roomData);
+  });
 
-    socket.on("room-update", (roomData) => {
-      console.log("🛠️ Room updated:", roomData);
-    });
+  socket.on("joined-room", (roomData) => {
+    console.log(
+      "😄 Joined room:",
+      roomData.room,
+      roomData.playerId,
+      roomData.players,
+    );
+  });
 
-    socket.on("joined-room", (roomData) => {
-      console.log(
-        "😄 Joined room:",
-        roomData.room,
-        roomData.playerId,
-        roomData.players,
-      );
-    });
+  socket.on("game-started", (gameState) => {
+    console.log("🚀 Game started:", gameState);
+    nextPiece.value = gameState.gameState.currentPiece;
+    currentPiece.value = gameState.gameState.currentPiece;
+    updateBoard(gameState);
+  });
 
-    socket.on("game-started", (gameState) => {
-      console.log("🚀 Game started:", gameState);
-      nextPiece.value = gameState.gameState.currentPiece;
-      currentPiece.value = gameState.gameState.currentPiece;
-      updateBoard(gameState);
-    });
+  socket.on("game-update", (gameState) => {
+    console.log("🕹️ Game state updated:", gameState);
+    updateBoard(gameState);
+    // board.value = gameState.board;
+    // nextPiece.value = gameState.nextPiece;
+  });
 
-    socket.on("game-update", (gameState) => {
-      console.log("🕹️ Game state updated:", gameState);
-      updateBoard(gameState);
-      // board.value = gameState.board;
-      // nextPiece.value = gameState.nextPiece;
-    });
-
-    socket.on("error", (error) => {
-      console.error("❌ Socket error:", error.message);
-    });
+  socket.on("error", (error) => {
+    console.error("❌ Socket error:", error.message);
   });
 });
 </script>
