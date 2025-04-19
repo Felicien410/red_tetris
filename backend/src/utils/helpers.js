@@ -297,7 +297,7 @@ function setupSocketHandlers(socket, server) {
 
 // Gestion des intervalles de jeu
 function startPlayerGameLoop(roomId, playerId, server) {
-  console.log(`⭐ Starting loop for ${playerId}, Room ${roomId}`);
+  console.log(`⭐ Starting Loop for ${playerId}, Room ${roomId}`);
   const interval = setInterval(async () => {
     try {
       const gameUpdate = await server.gameLogicService.handleMove(
@@ -328,9 +328,7 @@ function stopGameLoop(roomId, playerId, server) {
   if (interval) {
     clearInterval(interval);
     server.gameIntervals.delete(`${roomId}-${playerId}`);
-    console.log(
-      `Boucle de jeu arrêtée pour le joueur ${playerId} dans la room ${roomId}`,
-    );
+    console.log(`🛑 Stopped Loop for ${playerId}, Room ${roomId}`);
   }
 }
 

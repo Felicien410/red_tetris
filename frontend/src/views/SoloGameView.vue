@@ -4,7 +4,7 @@
   <v-container class="solo-container" pa-0 fluid>
     <v-row align="center" justify="center">
       <v-col cols="12" md="8" lg="6">
-        <TetrisGrid :grid="grid" />
+        <TetrisGrid :grid="board" />
       </v-col>
 
       <v-col
@@ -73,7 +73,7 @@ const room = `solo-${pseudo}`;
 const createEmptyGrid = () =>
   Array.from({ length: 20 }, () => Array(10).fill(0));
 
-const grid = ref(createEmptyGrid());
+const board = ref(createEmptyGrid());
 const nextPiece = ref(null);
 const currentPiece = ref(null);
 
@@ -81,6 +81,34 @@ const currentPiece = ref(null);
 const startGame = () => {
   socket.emit("start-game", { roomId: room, playerName: pseudo });
 };
+
+// Update board with game state
+function updateBoard(gameState) {
+  console.log("Updating board");
+  // Clone the server's board state to avoid direct mutation
+  const newBoard = gameState.gameState.board.map((row) => [...row]);
+  console.log("🚀 Current piece placement:");
+  console.table(newBoard.map((row) => row.join("")));
+  const { shape, position, type } = gameState.gameState.currentPiece;
+  console.log("🧱 Shape:", shape);
+  shape.forEach((row, y) => {
+    row.forEach((cell, x) => {
+      if (cell) {
+        const boardY = y + position.y;
+        const boardX = x + position.x;
+        if (
+          boardY >= 0 &&
+          boardY < newBoard.length &&
+          boardX >= 0 &&
+          boardX < newBoard[0].length
+        ) {
+          newBoard[boardY][boardX] = type;
+        }
+      }
+    });
+  });
+  board.value = newBoard;
+}
 
 onMounted(() => {
   socket.on("connect", () => {
@@ -101,10 +129,18 @@ onMounted(() => {
       );
     });
 
-    socket.on("game-started", (playerGameState) => {
-      console.log("🚀 Game started:", playerGameState);
-      nextPiece.value = playerGameState.gameState.currentPiece;
-      currentPiece.value = playerGameState.gameState.currentPiece;
+    socket.on("game-started", (gameState) => {
+      console.log("🚀 Game started:", gameState);
+      nextPiece.value = gameState.gameState.currentPiece;
+      currentPiece.value = gameState.gameState.currentPiece;
+      updateBoard(gameState);
+    });
+
+    socket.on("game-update", (gameState) => {
+      console.log("🕹️ Game state updated:", gameState);
+      updateBoard(gameState);
+      // board.value = gameState.board;
+      // nextPiece.value = gameState.nextPiece;
     });
 
     socket.on("error", (error) => {

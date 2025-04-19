@@ -14,6 +14,7 @@
 <script setup>
 import { computed } from "vue";
 import { toRef } from "vue";
+import { PIECE_TYPES, PIECE_SHAPES, PIECE_COLORS } from "@/constants";
 
 const props = defineProps({
   grid: {
@@ -54,25 +55,25 @@ const cellClass = (value) => {
   background: #111;
 }
 
-.cell.filled-1 {
+.cell.filled-I {
   background: cyan;
 }
-.cell.filled-2 {
+.cell.filled-O {
   background: yellow;
 }
-.cell.filled-3 {
+.cell.filled-T {
   background: purple;
 }
-.cell.filled-4 {
+.cell.filled-S {
   background: green;
 }
-.cell.filled-5 {
-  background: orange;
-}
-.cell.filled-6 {
+.cell.filled-Z {
   background: red;
 }
-.cell.filled-7 {
+.cell.filled-J {
   background: blue;
+}
+.cell.filled-L {
+  background: orange;
 }
 </style>
