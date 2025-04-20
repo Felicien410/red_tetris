@@ -76,6 +76,7 @@ const {
   isConnected,
   connectToRoom,
   startGame,
+  movePiece,
   onGameStarted,
   onGameUpdate,
   resetGameState,
@@ -114,7 +115,28 @@ const displayBoard = computed(() => {
   return boardCopy;
 });
 
+const handleKeyPress = (event) => {
+  if (!currentPiece.value) return;
+  switch (event.key) {
+    case "ArrowLeft":
+      movePiece("left");
+      break;
+    case "ArrowRight":
+      movePiece("right");
+      break;
+    case "ArrowDown":
+      movePiece("down");
+      break;
+    case "ArrowUp":
+      movePiece("rotate");
+      break;
+    default:
+      break;
+  }
+};
+
 onMounted(async () => {
+  console.log("🎯 SoloGameView mounted");
   try {
     await connectToRoom(room, pseudo);
     console.log("👋 Connected to room:", room);
@@ -129,11 +151,15 @@ onMounted(async () => {
   onGameUpdate((gameState) => {
     console.log("🕹️ Game update:", gameState);
   });
+
+  window.addEventListener("keydown", handleKeyPress);
 });
 
 onBeforeUnmount(() => {
+  console.log("👋 SoloGameView unmounted");
   disconnect();
   resetGameState();
+  window.removeEventListener("keydown", handleKeyPress);
   console.log("👋 Disconnected from server");
 });
 

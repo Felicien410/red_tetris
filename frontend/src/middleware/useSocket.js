@@ -45,7 +45,7 @@ function disconnect() {
 function onGameStarted(callback) {
   socket.on("game-started", (gameState) => {
     console.log("📦 Game started received:", gameState); // 👈
-    rawBoard.value = gameState.gameState.board; // ✅ Important !
+    rawBoard.value = gameState.gameState.board;
     currentPiece.value = gameState.gameState.currentPiece;
     nextPiece.value = gameState.gameState.nextPiece;
     callback(gameState);
@@ -60,6 +60,12 @@ function onGameUpdate(callback) {
     nextPiece.value = gameState.gameState.nextPiece;
     callback(gameState);
   });
+}
+
+function movePiece(direction) {
+  console.log("🚀 Move piece:", direction);
+  if (!currentPiece.value) return; // Game didn't start yet
+  socket.emit("move-piece", { direction });
 }
 
 function resetGameState() {
@@ -105,6 +111,7 @@ export function useSocket() {
     isConnected,
     connectToRoom,
     startGame,
+    movePiece,
     onGameStarted,
     onGameUpdate,
     resetGameState,

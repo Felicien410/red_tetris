@@ -12,10 +12,6 @@
 </template>
 
 <script setup>
-import { computed } from "vue";
-import { toRef } from "vue";
-import { PIECE_TYPES, PIECE_SHAPES, PIECE_COLORS } from "@/constants";
-
 const props = defineProps({
   grid: {
     type: Array,
