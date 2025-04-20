@@ -39,16 +39,10 @@
                     <td
                       v-for="(cell, cellIndex) in row"
                       :key="cellIndex"
-                      :style="{
-                        width: '20px',
-                        height: '20px',
-                        backgroundColor: cell
-                          ? PIECE_COLORS[nextPiece.type]
-                          : 'transparent',
-                        border: cell
-                          ? '1px solid #999'
-                          : '1px solid transparent',
-                      }"
+                      :class="[
+                        'next-cell',
+                        cell ? 'filled filled-' + nextPiece.type : 'empty',
+                      ]"
                     ></td>
                   </tr>
                 </tbody>
@@ -221,5 +215,76 @@ const startGameClick = () => {
 }
 .next-piece-display table {
   border-collapse: collapse;
+}
+
+.next-cell {
+  width: 20px;
+  height: 20px;
+}
+
+.next-cell.filled {
+  border-radius: 4px;
+  box-shadow:
+    inset 0 2px 3px rgba(255, 255, 255, 0.3),
+    inset 0 -2px 3px rgba(0, 0, 0, 0.3),
+    0 2px 4px rgba(0, 0, 0, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.next-cell.filled::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, 0.4),
+    rgba(255, 255, 255, 0)
+  );
+  border-radius: 4px;
+  pointer-events: none;
+}
+
+.next-cell.filled::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    120deg,
+    rgba(255, 255, 255, 0.1) 0%,
+    rgba(255, 255, 255, 0.4) 50%,
+    rgba(255, 255, 255, 0.1) 100%
+  );
+  transform: rotate(25deg);
+  animation: shine 2.5s infinite ease-in-out;
+  pointer-events: none;
+}
+
+.next-cell.filled-I {
+  background: linear-gradient(to bottom right, #00f0f0, #00cccc);
+}
+.next-cell.filled-O {
+  background: linear-gradient(to bottom right, #ffff66, #e6e600);
+}
+.next-cell.filled-T {
+  background: linear-gradient(to bottom right, #a000f0, #8000cc);
+}
+.next-cell.filled-S {
+  background: linear-gradient(to bottom right, #00cc66, #00994d);
+}
+.next-cell.filled-Z {
+  background: linear-gradient(to bottom right, #f00000, #cc0000);
+}
+.next-cell.filled-J {
+  background: linear-gradient(to bottom right, #0000f0, #0000cc);
+}
+.next-cell.filled-L {
+  background: linear-gradient(to bottom right, #ff9900, #cc7a00);
 }
 </style>

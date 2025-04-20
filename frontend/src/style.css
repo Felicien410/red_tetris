@@ -21,8 +21,18 @@ body {
   color: var(--text-color);
 }
 
-button {
-  font-family: inherit;
-  border: none;
-  cursor: pointer;
+.v-btn {
+  border-radius: 999px !important;
+  background-color: white !important;
+  color: #ff7a29 !important;
+  font-weight: bold;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(255, 122, 41, 0.2);
+  gap: 2rem;
+}
+
+.v-btn:hover {
+  background-color: black !important;
+  box-shadow: 0 6px 16px rgba(255, 122, 41, 0.3);
 }

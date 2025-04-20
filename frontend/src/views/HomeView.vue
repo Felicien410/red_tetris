@@ -8,9 +8,9 @@
       style="min-width: 500px"
     />
 
-    <div class="d-flex gap-4">
-      <v-btn color="primary" @click="startSolo">Solo</v-btn>
-      <v-btn color="secondary" @click="startMultiplayer">Multi</v-btn>
+    <div class="d-flex gap-8">
+      <v-btn class="me-4" @click="startSolo">Solo</v-btn>
+      <v-btn @click="startMultiplayer">Multi</v-btn>
     </div>
 
     <div class="d-flex gap-4 mt-12 welcome-card">
@@ -47,7 +47,9 @@ const startMultiplayer = () => {
 
 <style scoped>
 .custom-text-field :deep(.v-field) {
-  background-color: var(--secondary-color);
+  background-color: var(--text-color);
+  color: #ff7a29;
+  font-weight: bold;
   border-radius: 8px;
 }
 
