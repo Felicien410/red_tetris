@@ -3,10 +3,11 @@
   <router-view />
 </template>
 
-<script setup>
-// rien à faire ici pour l'instant
-</script>
+<script setup></script>
 
 <style>
-/* Tu peux mettre ici quelques styles globaux si tu veux */
+#app {
+  overflow: hidden;
+  text-align: center;
+}
 </style>

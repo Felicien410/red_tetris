@@ -14,6 +14,9 @@ const isConnected = ref(false);
 let listenersAttached = false;
 
 function connectToRoom(room, pseudo) {
+  if (!socket.connected) {
+    socket.connect();
+  }
   return fetch(`http://localhost:3000/${room}/${pseudo}`, {
     method: "POST",
   })
@@ -36,6 +39,7 @@ function startGame(room, pseudo) {
 
 function disconnect() {
   socket.disconnect();
+  removeAllListeners();
 }
 
 function onGameStarted(callback) {
@@ -43,7 +47,7 @@ function onGameStarted(callback) {
     console.log("📦 Game started received:", gameState); // 👈
     rawBoard.value = gameState.gameState.board; // ✅ Important !
     currentPiece.value = gameState.gameState.currentPiece;
-    nextPiece.value = gameState.gameState.currentPiece;
+    nextPiece.value = gameState.gameState.nextPiece;
     callback(gameState);
   });
 }
@@ -53,8 +57,15 @@ function onGameUpdate(callback) {
     console.log("📦 Game update received:", gameState); // 👈
     rawBoard.value = gameState.gameState.board;
     currentPiece.value = gameState.gameState.currentPiece;
+    nextPiece.value = gameState.gameState.nextPiece;
     callback(gameState);
   });
+}
+
+function resetGameState() {
+  rawBoard.value = createEmptyGrid();
+  currentPiece.value = null;
+  nextPiece.value = null;
 }
 
 function setupConnectionListeners() {
@@ -75,6 +86,15 @@ function setupConnectionListeners() {
   });
 }
 
+function removeAllListeners() {
+  socket.off("connect");
+  socket.off("disconnect");
+  socket.off("error");
+  socket.off("game-started");
+  socket.off("game-update");
+  listenersAttached = false;
+}
+
 setupConnectionListeners();
 
 export function useSocket() {
@@ -87,6 +107,7 @@ export function useSocket() {
     startGame,
     onGameStarted,
     onGameUpdate,
+    resetGameState,
     disconnect,
   };
 }

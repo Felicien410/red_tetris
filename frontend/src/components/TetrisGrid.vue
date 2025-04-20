@@ -36,7 +36,7 @@ const cellClass = (value) => {
   aspect-ratio: 10 / 20;
   height: 99vh;
   width: auto;
-  background: #222;
+  background: white;
 }
 
 .row {
@@ -48,11 +48,10 @@ const cellClass = (value) => {
 .cell {
   width: 100%;
   aspect-ratio: 1 / 1;
-  background: #111;
 }
 
 .cell.empty {
-  background: #111;
+  background: #b5b5b5;
 }
 
 .cell.filled-I {

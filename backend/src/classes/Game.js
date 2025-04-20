@@ -111,14 +111,23 @@ class Game {
     console.log("🧱 Creating new piece");
     console.log("Blocks placed:", this.playerBlocksPlaced);
 
+    let pieceType = null;
+    let nextPieceType = null;
     // Génère une nouvelle pièce directement
-    const pieceType = await this.generateNextPiece();
+    if (!this.nextPiece) {
+      pieceType = await this.generateNextPiece();
+    } else {
+      pieceType = this.nextPiece;
+    }
+    nextPieceType = await this.generateNextPiece();
 
     this.currentPiece = new Piece(pieceType.type);
     this.currentPiece.position = {
       x: Math.floor(BOARD.WIDTH / 2) - 1,
       y: 0,
     };
+
+    this.nextPiece = new Piece(nextPieceType.type);
 
     if (this.checkCollision(this.currentPiece)) {
       this.gameOver = true;

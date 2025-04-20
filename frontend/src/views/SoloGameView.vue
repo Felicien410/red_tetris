@@ -64,10 +64,10 @@
 
 <!-- JavaScript -->
 <script setup>
-import { onMounted, onBeforeUnmount, ref, computed } from "vue";
-import { useSocket } from "@/middleware/useSocket";
+import { onMounted, onBeforeUnmount, computed } from "vue";
+import { useSocket } from "@/middleware/useSocket.js";
 import TetrisGrid from "@/components/TetrisGrid.vue";
-import { PIECE_TYPES, PIECE_SHAPES, PIECE_COLORS } from "@/constants";
+import { PIECE_SHAPES, PIECE_COLORS } from "@/constants";
 
 const {
   rawBoard,
@@ -78,6 +78,7 @@ const {
   startGame,
   onGameStarted,
   onGameUpdate,
+  resetGameState,
   disconnect,
 } = useSocket();
 
@@ -132,6 +133,7 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   disconnect();
+  resetGameState();
   console.log("👋 Disconnected from server");
 });
 
@@ -155,7 +157,7 @@ const startGameClick = () => {
 .start-btn {
   border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 12px;
-  background-color: var(--primary-light);
+  background-color: var(--secondary-color);
   color: var(--text-color);
   font-weight: bold;
   width: 200px;
