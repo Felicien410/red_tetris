@@ -284,6 +284,19 @@ function setupSocketHandlers(socket, server) {
     }
   });
 
+  socket.on("fall-piece", async (data) => {
+    if (socket.roomId) {
+      const gameUpdate = await server.gameLogicService.handleFall(
+        socket.roomId,
+        socket.id, // Ajout de l'ID du joueur
+      );
+      if (gameUpdate) {
+        // Envoyer la mise à jour uniquement au joueur concerné
+        server.io.to(socket.id).emit("game-update", gameUpdate);
+      }
+    }
+  });
+
   socket.on("disconnect", async () => {
     console.log("Disconnection:", socket.id);
     server.connectedSockets.delete(socket.id);

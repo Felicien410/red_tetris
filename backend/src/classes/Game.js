@@ -216,6 +216,20 @@ class Game {
     }
     return true;
   }
+
+  // Fait tomber la pièce courante tout en bas
+  async fallPiece() {
+    if (!this.currentPiece || !this.isPlaying || this.isPaused) return false;
+
+    let moved = false;
+    while (!this.checkCollision(this.currentPiece)) {
+      this.movePiece("down");
+      moved = true;
+    }
+
+    return moved;
+  }
+
   // Vérifie les collisions d'une pièce
   checkCollision(piece) {
     if (!piece || !piece.shape) {

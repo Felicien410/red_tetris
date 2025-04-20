@@ -78,6 +78,7 @@ const {
   startGame,
   movePiece,
   rotatePiece,
+  fallPiece,
   onGameStarted,
   onGameUpdate,
   resetGameState,
@@ -118,7 +119,7 @@ const displayBoard = computed(() => {
 
 const handleKeyPress = (event) => {
   if (!currentPiece.value) return;
-  switch (event.key) {
+  switch (event.code) {
     case "ArrowLeft":
       movePiece("left");
       break;
@@ -129,7 +130,11 @@ const handleKeyPress = (event) => {
       movePiece("down");
       break;
     case "ArrowUp":
-      rotatePiece("rotate");
+      rotatePiece();
+      break;
+    case "Space":
+      event.preventDefault(); // Prevent default spacebar behavior (clicking on button)
+      fallPiece();
       break;
     default:
       break;

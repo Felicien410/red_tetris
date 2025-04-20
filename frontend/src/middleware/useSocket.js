@@ -74,6 +74,12 @@ function rotatePiece() {
   socket.emit("rotate-piece");
 }
 
+function fallPiece() {
+  console.log("⬇️ Fall piece");
+  if (!currentPiece.value) return; // Game didn't start yet
+  socket.emit("fall-piece");
+}
+
 function resetGameState() {
   rawBoard.value = createEmptyGrid();
   currentPiece.value = null;
@@ -119,6 +125,7 @@ export function useSocket() {
     startGame,
     movePiece,
     rotatePiece,
+    fallPiece,
     onGameStarted,
     onGameUpdate,
     resetGameState,

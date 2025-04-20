@@ -99,7 +99,25 @@ class GameLogicService {
       game.rotatePiece();
       return { gameState: game.getState() };
     } catch (error) {
-      console.error("Erreur dans handleRotation:", error);
+      console.error("handleRotation error", error);
+      return null;
+    }
+  }
+
+  async handleFall(roomId, playerId) {
+    try {
+      const playerGames = this.games.get(roomId);
+      if (!playerGames) return null;
+
+      const game = playerGames.get(playerId);
+      if (!game) return null;
+
+      const didFall = await game.fallPiece();
+      if (didFall) {
+        return { gameState: game.getState() };
+      }
+    } catch (error) {
+      console.error("handleFall error:", error);
       return null;
     }
   }
