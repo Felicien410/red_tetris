@@ -77,6 +77,7 @@ const {
   connectToRoom,
   startGame,
   movePiece,
+  rotatePiece,
   onGameStarted,
   onGameUpdate,
   resetGameState,
@@ -128,7 +129,7 @@ const handleKeyPress = (event) => {
       movePiece("down");
       break;
     case "ArrowUp":
-      movePiece("rotate");
+      rotatePiece("rotate");
       break;
     default:
       break;

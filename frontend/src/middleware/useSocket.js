@@ -68,6 +68,12 @@ function movePiece(direction) {
   socket.emit("move-piece", { direction });
 }
 
+function rotatePiece() {
+  console.log("🔄 Rotate piece");
+  if (!currentPiece.value) return; // Game didn't start yet
+  socket.emit("rotate-piece");
+}
+
 function resetGameState() {
   rawBoard.value = createEmptyGrid();
   currentPiece.value = null;
@@ -112,6 +118,7 @@ export function useSocket() {
     connectToRoom,
     startGame,
     movePiece,
+    rotatePiece,
     onGameStarted,
     onGameUpdate,
     resetGameState,
