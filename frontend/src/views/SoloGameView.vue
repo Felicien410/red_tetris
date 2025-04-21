@@ -5,8 +5,7 @@
     <v-row align="center" justify="center">
       <!-- BOARD (vertical 1/2) -->
       <v-col cols="12" md="8" lg="6">
-        <TetrisGrid v-if="!isGameOver" :grid="displayBoard" />
-        <TetrisGrid v-else :grid="frozenBoard" />
+        <TetrisGrid :grid="displayBoard" />
       </v-col>
 
       <!-- BUTTONS & DATA (vertical 2/2) -->
@@ -101,7 +100,6 @@ const pseudo = localStorage.getItem("pseudo");
 const room = `solo-${pseudo}`;
 const isGameOver = ref(false);
 const showGameOverModal = ref(false);
-const frozenBoard = ref(null);
 
 //\\ BOARD //\\
 const displayBoard = computed(() => {
@@ -176,7 +174,6 @@ onMounted(async () => {
     console.log("🕹️ Game update:", gameState);
     if (gameState.gameState.gameOver) {
       isGameOver.value = true;
-      frozenBoard.value = displayBoard.value.map((row) => [...row]);
       currentPiece.value = null;
       showGameOverModal.value = true;
     }
