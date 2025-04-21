@@ -1,9 +1,11 @@
 const { REDIS_KEYS, MAX_PLAYERS, BOARD } = require("../config/constants");
 const Game = require("../classes/Game");
+const { stopGameLoop } = require("../utils/helpers.js");
 
 class GameLogicService {
-  constructor(redisClient) {
+  constructor(redisClient, server) {
     this.redisClient = redisClient;
+    this.server = server;
     this.games = new Map();
   }
 
@@ -69,6 +71,10 @@ class GameLogicService {
       if (!game) {
         console.error("No game for player:", playerId);
         return null;
+      }
+
+      if (game.gameOver) {
+        stopGameLoop(roomId, playerId, this.server);
       }
 
       await game.movePiece(direction);

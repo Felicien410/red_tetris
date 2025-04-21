@@ -37,7 +37,7 @@ class TetrisServer {
     this.redisClient = createClient({ url: redisUrl });
     this.connectedSockets = new Map();
     this.LobbyService = new LobbyService(this.redisClient);
-    this.gameLogicService = new GameLogicService(this.redisClient);
+    this.gameLogicService = new GameLogicService(this.redisClient, this);
     this.gameIntervals = new Map();
 
     this.setupServer();
@@ -70,4 +70,3 @@ class TetrisServer {
 }
 
 new TetrisServer();
-

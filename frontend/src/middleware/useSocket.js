@@ -10,7 +10,6 @@ const rawBoard = ref(createEmptyGrid());
 const currentPiece = ref(null);
 const nextPiece = ref(null);
 const isConnected = ref(false);
-
 let listenersAttached = false;
 
 function connectToRoom(room, pseudo) {

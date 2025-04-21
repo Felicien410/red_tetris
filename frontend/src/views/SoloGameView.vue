@@ -3,10 +3,13 @@
 <template>
   <v-container class="solo-container" pa-0 fluid>
     <v-row align="center" justify="center">
+      <!-- BOARD (vertical 1/2) -->
       <v-col cols="12" md="8" lg="6">
-        <TetrisGrid :grid="displayBoard" />
+        <TetrisGrid v-if="!isGameOver" :grid="displayBoard" />
+        <TetrisGrid v-else :grid="frozenBoard" />
       </v-col>
 
+      <!-- BUTTONS & DATA (vertical 2/2) -->
       <v-col
         cols="12"
         md="4"
@@ -53,12 +56,28 @@
         </v-card>
       </v-col>
     </v-row>
+    <!-- Game Over Modal -->
+    <v-dialog v-model="showGameOverModal" max-width="400">
+      <v-card>
+        <v-card-title class="text-h6 text-center">🎮 Game Over</v-card-title>
+        <v-card-text class="text-center">
+          You Lost... 😢<br />
+          Play Again ?
+        </v-card-text>
+        <v-card-actions class="justify-center">
+          <v-btn color="primary" @click="startGameClick"> Restart! </v-btn>
+          <v-btn color="secondary" @click="showGameOverModal = false">
+            Close
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
 <!-- JavaScript -->
 <script setup>
-import { onMounted, onBeforeUnmount, computed } from "vue";
+import { onMounted, onBeforeUnmount, computed, ref } from "vue";
 import { useSocket } from "@/middleware/useSocket.js";
 import TetrisGrid from "@/components/TetrisGrid.vue";
 import { PIECE_SHAPES, PIECE_COLORS } from "@/constants";
@@ -78,16 +97,19 @@ const {
   resetGameState,
   disconnect,
 } = useSocket();
-
 const pseudo = localStorage.getItem("pseudo");
 const room = `solo-${pseudo}`;
+const isGameOver = ref(false);
+const showGameOverModal = ref(false);
+const frozenBoard = ref(null);
 
-// Update board with game state
+//\\ BOARD //\\
 const displayBoard = computed(() => {
-  console.log("Updating board");
-  if (!rawBoard.value || !currentPiece.value) {
+  console.log("⚡ displayBoard re-evaluated");
+  if (!rawBoard.value || !currentPiece.value || isGameOver.value) {
     return rawBoard.value;
   }
+  console.log("Updating board");
   // Clone the server's board state to avoid direct mutation
   const boardCopy = rawBoard.value.map((row) => [...row]);
   console.table(boardCopy.map((row) => row.join("")));
@@ -111,6 +133,7 @@ const displayBoard = computed(() => {
   return boardCopy;
 });
 
+//\\ KEYS //\\
 const handleKeyPress = (event) => {
   if (!currentPiece.value) return;
   switch (event.code) {
@@ -135,11 +158,12 @@ const handleKeyPress = (event) => {
   }
 };
 
+//\\ LISTENERS //\\
 onMounted(async () => {
   console.log("🎯 SoloGameView mounted");
   try {
     await connectToRoom(room, pseudo);
-    console.log("👋 Connected to room:", room);
+    console.log("✅ Connected to room:", room);
   } catch (e) {
     alert(e.message);
   }
@@ -150,6 +174,12 @@ onMounted(async () => {
 
   onGameUpdate((gameState) => {
     console.log("🕹️ Game update:", gameState);
+    if (gameState.gameState.gameOver) {
+      isGameOver.value = true;
+      frozenBoard.value = displayBoard.value.map((row) => [...row]);
+      currentPiece.value = null;
+      showGameOverModal.value = true;
+    }
   });
 
   window.addEventListener("keydown", handleKeyPress);
@@ -163,9 +193,9 @@ onBeforeUnmount(() => {
   console.log("👋 Disconnected from server");
 });
 
+//\\ EVENTS //\\
 const startGameClick = () => {
   startGame(room, pseudo);
-  console.log("🚀 Game started");
 };
 </script>
 

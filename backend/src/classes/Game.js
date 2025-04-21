@@ -75,7 +75,7 @@ class Game {
       }
     }
 
-    console.log("Nombre total de blocs placés:", this.playerBlocksPlaced);
+    console.log("Total number of blocks placed:", this.playerBlocksPlaced);
     return this.playerBlocksPlaced;
   }
 
