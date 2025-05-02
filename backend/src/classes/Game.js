@@ -217,17 +217,28 @@ class Game {
     return true;
   }
 
-  // Fait tomber la pièce courante tout en bas
   async fallPiece() {
     if (!this.currentPiece || !this.isPlaying || this.isPaused) return false;
 
     let moved = false;
-    while (!this.checkCollision(this.currentPiece)) {
-      this.movePiece("down");
+
+    while (true) {
+      this.currentPiece.position.y += 1;
+      if (this.checkCollision(this.currentPiece)) {
+        this.currentPiece.position.y -= 1;
+        await this.lockPiece();
+        this.clearLines();
+
+        const spawnSuccess = await this.spawnPiece();
+        if (!spawnSuccess) {
+          this.gameOver = true;
+          this.isPlaying = false;
+        }
+
+        return true;
+      }
       moved = true;
     }
-
-    return moved;
   }
 
   // Vérifie les collisions d'une pièce

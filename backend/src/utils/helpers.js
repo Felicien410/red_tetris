@@ -393,6 +393,29 @@ async function cleanupAllRooms(redisClient) {
   }
 }
 
+async function resetRoom(roomId, server, games) {
+  try {
+    const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
+    const playerGames = games.get(roomId);
+
+    if (playerGames) {
+      playerGames.forEach((_, playerId) => {
+        stopGameLoop(roomId, playerId, server);
+      });
+      games.delete(roomId);
+    }
+
+    const roomData = await server.redisClient.hGetAll(roomKey);
+    if (roomData) {
+      await server.redisClient.hSet(roomKey, "isPlaying", "false");
+    }
+
+    console.log(`Room ${roomId} has been reset.`);
+  } catch (error) {
+    console.error("Error resetting room:", error);
+  }
+}
+
 module.exports = {
   setupMiddlewares,
   setupDebugRoute,
@@ -402,4 +425,5 @@ module.exports = {
   stopGameLoop,
   cleanupRoom,
   cleanupAllRooms,
+  resetRoom,
 };

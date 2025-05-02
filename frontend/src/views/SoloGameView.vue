@@ -13,8 +13,30 @@
         cols="12"
         md="4"
         lg="3"
-        class="d-flex flex-column align-center justify-start"
+        class="d-flex flex-column align-center justify-center"
+        style="gap: 16px"
       >
+        <!-- SCORE -->
+        <v-card class="next-piece-card" style="margin-bottom: 5rem" outlined>
+          <v-card-title
+            class="text-h3 text-center"
+            style="font-weight: bold; color: var(--text-color)"
+          >
+            Score
+          </v-card-title>
+          <v-card-text
+            class="d-flex align-center justify-center"
+            style="height: 80px"
+          >
+            <div
+              class="text-h3 font-weight-bold"
+              style="color: var(--text-color)"
+            >
+              {{ score }}
+            </div>
+          </v-card-text>
+        </v-card>
+        <!-- BUTTON -->
         <v-btn
           class="mb-4 start-btn"
           @click="startGameClick"
@@ -23,7 +45,8 @@
           Start
         </v-btn>
 
-        <v-card class="next-piece-card" outlined>
+        <!-- NEXT PIECE DISPLAY -->
+        <v-card class="next-piece-card pa-1" outlined>
           <v-card-title
             class="text-h6 text-center"
             style="font-weight: bold; color: var(--text-color)"
@@ -56,18 +79,24 @@
       </v-col>
     </v-row>
     <!-- Game Over Modal -->
-    <v-dialog v-model="showGameOverModal" max-width="400">
-      <v-card>
-        <v-card-title class="text-h6 text-center">🎮 Game Over</v-card-title>
-        <v-card-text class="text-center">
-          You Lost... 😢<br />
+    <v-dialog v-model="showGameOverModal" max-width="500" persistent>
+      <v-card class="game-over-card">
+        <v-card-title class="text-h6 text-center game-over-title"
+          >🎮 Game Over</v-card-title
+        >
+        <v-card-text class="text-center game-over-text font-weight-bold">
           Play Again ?
         </v-card-text>
         <v-card-actions class="justify-center">
-          <v-btn color="primary" @click="startGameClick"> Restart! </v-btn>
-          <v-btn color="secondary" @click="showGameOverModal = false">
-            Close
+          <v-btn
+            @click="
+              startGameClick();
+              showGameOverModal = false;
+            "
+          >
+            Restart!
           </v-btn>
+          <v-btn @click="goHome">Home</v-btn>
         </v-card-actions>
       </v-card>
     </v-dialog>
@@ -77,10 +106,12 @@
 <!-- JavaScript -->
 <script setup>
 import { onMounted, onBeforeUnmount, computed, ref } from "vue";
+import { useRouter } from "vue-router";
 import { useSocket } from "@/middleware/useSocket.js";
 import TetrisGrid from "@/components/TetrisGrid.vue";
 import { PIECE_SHAPES, PIECE_COLORS } from "@/constants";
 
+const router = useRouter();
 const {
   rawBoard,
   currentPiece,
@@ -98,12 +129,16 @@ const {
 } = useSocket();
 const pseudo = localStorage.getItem("pseudo");
 const room = `solo-${pseudo}`;
+const score = ref(0);
 const isGameOver = ref(false);
 const showGameOverModal = ref(false);
 
 //\\ BOARD //\\
 const displayBoard = computed(() => {
   console.log("⚡ displayBoard re-evaluated");
+  console.log("rawBoard", rawBoard.value);
+  console.log("currentPiece", currentPiece.value);
+  console.log("isGameOver", isGameOver.value);
   if (!rawBoard.value || !currentPiece.value || isGameOver.value) {
     return rawBoard.value;
   }
@@ -176,6 +211,9 @@ onMounted(async () => {
       isGameOver.value = true;
       currentPiece.value = null;
       showGameOverModal.value = true;
+    } else {
+      isGameOver.value = false;
+      score.value = gameState.gameState.score;
     }
   });
 
@@ -186,6 +224,7 @@ onBeforeUnmount(() => {
   console.log("👋 SoloGameView unmounted");
   disconnect();
   resetGameState();
+  isGameOver.value = false;
   window.removeEventListener("keydown", handleKeyPress);
   console.log("👋 Disconnected from server");
 });
@@ -193,6 +232,11 @@ onBeforeUnmount(() => {
 //\\ EVENTS //\\
 const startGameClick = () => {
   startGame(room, pseudo);
+};
+
+const goHome = () => {
+  showGameOverModal.value = false;
+  router.push("/");
 };
 </script>
 
@@ -313,5 +357,26 @@ const startGameClick = () => {
 }
 .next-cell.filled-L {
   background: linear-gradient(to bottom right, #ff9900, #cc7a00);
+}
+
+.game-over-card {
+  background-color: #ff9b71;
+  border: 4px solid white;
+  border-radius: 16px !important;
+  color: white;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+}
+
+::v-deep(.v-overlay__scrim) {
+  backdrop-filter: blur(8px);
+  background-color: rgba(0, 0, 0, 0.4) !important;
+  transition:
+    backdrop-filter 0.5s ease,
+    background-color 0.5s ease;
+}
+
+.game-over-title,
+.game-over-text {
+  color: var(--text-color);
 }
 </style>

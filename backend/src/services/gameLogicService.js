@@ -1,6 +1,6 @@
 const { REDIS_KEYS, MAX_PLAYERS, BOARD } = require("../config/constants");
 const Game = require("../classes/Game");
-const { stopGameLoop } = require("../utils/helpers.js");
+const { stopGameLoop, resetRoom } = require("../utils/helpers.js");
 
 class GameLogicService {
   constructor(redisClient, server) {
@@ -75,6 +75,7 @@ class GameLogicService {
 
       if (game.gameOver) {
         stopGameLoop(roomId, playerId, this.server);
+        await resetRoom(roomId, this.server, this.games);
       }
 
       await game.movePiece(direction);

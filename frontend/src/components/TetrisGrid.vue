@@ -100,7 +100,7 @@ const cellClass = (value) => {
 }
 
 .cell.empty {
-  background: black;
+  background: var(--soft-black);
 }
 
 .cell.filled-I {
