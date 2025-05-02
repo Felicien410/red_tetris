@@ -17,9 +17,13 @@
         style="gap: 16px"
       >
         <!-- SCORE -->
-        <v-card class="next-piece-card" style="margin-bottom: 5rem" outlined>
+        <v-card
+          class="next-piece-card pa-7"
+          style="margin-bottom: 5rem"
+          outlined
+        >
           <v-card-title
-            class="text-h3 text-center"
+            class="text-h4 text-center"
             style="font-weight: bold; color: var(--text-color)"
           >
             Score
@@ -360,7 +364,7 @@ const goHome = () => {
 }
 
 .game-over-card {
-  background-color: #ff9b71;
+  background-color: var(--primary-plain);
   border: 4px solid white;
   border-radius: 16px !important;
   color: white;

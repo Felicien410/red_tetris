@@ -2,6 +2,7 @@
 
 :root {
   --primary-color: linear-gradient(to right, #ff9b71, #ea7e50);
+  --primary-plain: #ff9b71;
   --secondary-color: #4c8af5;
   --primary-light: #a066c9;
   --soft-black: #1a1f1f;
@@ -11,6 +12,16 @@
 
 * {
   box-sizing: border-box;
+}
+
+body.dark-mode {
+  --primary-color: linear-gradient(to right, #7d00eb, #6500eb);
+  --primary-plain: #7d00eb;
+  --secondary-color: #ebce00;
+  --primary-light: #4c8af5;
+  --soft-black: #ffffff;
+  --text-color: #fff;
+  --background-color: #1a1f1f;
 }
 
 html,
@@ -24,9 +35,9 @@ body {
 
 .v-btn {
   border-radius: 999px !important;
-  background-color: white !important;
+  background-color: var(--text-color) !important;
   color: #ff7a29 !important;
-  font-weight: bold;
+  font-weight: 900 !important;
   text-transform: uppercase;
   transition: all 0.2s ease;
   box-shadow: 0 4px 12px rgba(255, 122, 41, 0.2);
@@ -34,6 +45,23 @@ body {
 }
 
 .v-btn:hover {
-  background-color: black !important;
+  background-color: var(--secondary-color) !important;
+  color: var(--text-color) !important;
+  box-shadow: 0 6px 16px rgba(255, 122, 41, 0.3);
+}
+
+body.dark-mode .v-btn {
+  background-color: var(--soft-black) !important;
+  color: var(--primary-plain) !important;
+  font-weight: 900 !important;
+  text-transform: uppercase;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(255, 122, 41, 0.2);
+  gap: 2rem;
+}
+
+body.dark-mode .v-btn:hover {
+  background-color: var(--secondary-color) !important;
+  color: var(--background-color) !important;
   box-shadow: 0 6px 16px rgba(255, 122, 41, 0.3);
 }
