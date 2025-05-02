@@ -311,27 +311,47 @@ function setupSocketHandlers(socket, server) {
 // Gestion des intervalles de jeu
 function startPlayerGameLoop(roomId, playerId, server) {
   console.log(`⭐ Starting Loop for ${playerId}, Room ${roomId}`);
-  const interval = setInterval(async () => {
+  const runLoop = async () => {
+    const gameInstance = server.gameLogicService.games
+      ?.get(roomId)
+      ?.get(playerId);
+    if (!gameInstance) {
+      server.gameIntervals.delete(`${roomId}-${playerId}`);
+      return;
+    }
+
     try {
       const gameUpdate = await server.gameLogicService.handleMove(
         roomId,
         playerId,
         "down",
       );
+
       if (gameUpdate) {
         server.io.to(playerId).emit("game-update", gameUpdate);
       }
+      if (gameInstance.gameOver) {
+        stopGameLoop(roomId, playerId, server);
+        await resetRoom(roomId, server, server.gameLogicService.games);
+        return;
+      }
     } catch (error) {
       console.error("Loop error:", error);
-      clearInterval(interval);
+      clearTimeout(server.gameIntervals.get(`${roomId}-${playerId}`));
       server.gameIntervals.delete(`${roomId}-${playerId}`);
+      return;
     }
-  }, 1000);
 
-  server.gameIntervals.set(`${roomId}-${playerId}`, interval);
+    // Attendre la prochaine itération selon la vitesse actuelle
+    const timeout = setTimeout(runLoop, gameInstance.gameSpeed || 1000);
+    server.gameIntervals.set(`${roomId}-${playerId}`, timeout);
+  };
+
+  runLoop();
 }
 
 function stopGameLoop(roomId, playerId, server) {
+  console.log(`Stopping Loop for ${playerId}, Room ${roomId}`);
   if (!server || !server.gameIntervals) {
     console.error("Server or gameIntervals is not defined");
     return;
@@ -339,7 +359,7 @@ function stopGameLoop(roomId, playerId, server) {
 
   const interval = server.gameIntervals.get(`${roomId}-${playerId}`);
   if (interval) {
-    clearInterval(interval);
+    clearTimeout(interval);
     server.gameIntervals.delete(`${roomId}-${playerId}`);
     console.log(`🛑 Stopped Loop for ${playerId}, Room ${roomId}`);
   }

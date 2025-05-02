@@ -318,8 +318,10 @@ class Game {
 
   // Met à jour le niveau et la vitesse du jeu
   updateLevel() {
-    this.level = Math.floor(this.linesCleared / 10) + 1;
+    this.level = Math.floor(this.linesCleared / 5) + 1;
     this.gameSpeed = Math.max(100, 1000 - (this.level - 1) * 100);
+    console.log("Niveau:", this.level);
+    console.log("Vitesse du jeu:", this.gameSpeed);
     return this;
   }
 

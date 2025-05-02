@@ -60,6 +60,7 @@ class GameLogicService {
   }
 
   async handleMove(roomId, playerId, direction) {
+    console.log("handleMove called with direction:", direction);
     try {
       const playerGames = this.games.get(roomId);
       if (!playerGames) {
@@ -74,6 +75,7 @@ class GameLogicService {
       }
 
       if (game.gameOver) {
+        console.log("Calling stopGameLoop and resetRoom");
         stopGameLoop(roomId, playerId, this.server);
         await resetRoom(roomId, this.server, this.games);
       }
