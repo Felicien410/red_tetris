@@ -21,7 +21,7 @@ body.dark-mode {
   --secondary-color: #ebce00;
   --primary-light: #4c8af5;
   --grid-background: #1a1f1f;
-  --soft-black: #ffffff;
+  --soft-black: #414a4c;
   --text-color: #fff;
   --background-color: #1a1f1f;
 }
@@ -54,7 +54,7 @@ body {
 
 body.dark-mode .v-btn {
   background-color: var(--soft-black) !important;
-  color: var(--primary-plain) !important;
+  color: var(--text-color) !important;
   font-weight: 900 !important;
   text-transform: uppercase;
   transition: all 0.2s ease;
