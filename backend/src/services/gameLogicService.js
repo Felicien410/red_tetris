@@ -74,12 +74,6 @@ class GameLogicService {
         return null;
       }
 
-      if (game.gameOver) {
-        console.log("Calling stopGameLoop and resetRoom");
-        stopGameLoop(roomId, playerId, this.server);
-        await resetRoom(roomId, this.server, this.games);
-      }
-
       await game.movePiece(direction);
       const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
       const roomData = await this.redisClient.hGetAll(roomKey);
