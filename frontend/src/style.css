@@ -6,6 +6,7 @@
   --secondary-color: #4c8af5;
   --primary-light: #a066c9;
   --soft-black: #1a1f1f;
+  --grid-background: #f5f5f5;
   --text-color: #fff;
   --font-family: "Roboto", sans-serif;
 }
@@ -19,6 +20,7 @@ body.dark-mode {
   --primary-plain: #7d00eb;
   --secondary-color: #ebce00;
   --primary-light: #4c8af5;
+  --grid-background: #1a1f1f;
   --soft-black: #ffffff;
   --text-color: #fff;
   --background-color: #1a1f1f;

@@ -32,7 +32,7 @@ const cellClass = (value) => {
   aspect-ratio: 10 / 20;
   height: 99vh;
   width: auto;
-  background: white;
+  background: var(--grid-background);
 }
 
 .row {
