@@ -5,7 +5,7 @@
     <v-row align="center" justify="center">
       <!-- BOARD (vertical 1/2) -->
       <v-col cols="12" md="8" lg="6">
-        <TetrisGrid :grid="displayBoard" />
+        <TetrisGrid :grid="displayBoard" :clearedLinesInfo="clearedLinesInfo" />
       </v-col>
 
       <!-- BUTTONS & DATA (vertical 2/2) -->
@@ -136,20 +136,21 @@ const room = `solo-${pseudo}`;
 const score = ref(0);
 const isGameOver = ref(false);
 const showGameOverModal = ref(false);
+const clearedLinesInfo = ref(null);
 
 //\\ BOARD //\\
 const displayBoard = computed(() => {
-  console.log("⚡ displayBoard re-evaluated");
-  console.log("rawBoard", rawBoard.value);
-  console.log("currentPiece", currentPiece.value);
-  console.log("isGameOver", isGameOver.value);
+  // console.log("⚡ displayBoard re-evaluated");
+  // console.log("rawBoard", rawBoard.value);
+  // console.log("currentPiece", currentPiece.value);
+  // console.log("isGameOver", isGameOver.value);
   if (!rawBoard.value || !currentPiece.value || isGameOver.value) {
     return rawBoard.value;
   }
   console.log("Updating board");
   // Clone the server's board state to avoid direct mutation
   const boardCopy = rawBoard.value.map((row) => [...row]);
-  console.table(boardCopy.map((row) => row.join("")));
+  // console.table(boardCopy.map((row) => row.join("")));
   const { shape, position, type } = currentPiece.value;
   shape.forEach((row, y) => {
     row.forEach((cell, x) => {
@@ -210,7 +211,21 @@ onMounted(async () => {
   });
 
   onGameUpdate((gameState) => {
-    console.log("🕹️ Game update:", gameState);
+    // console.log("🕹️ Game update:", gameState);
+    if (gameState.linesClearedInfo && gameState.linesClearedInfo.count > 0) {
+      console.log("🎆 Lines cleared:", gameState.linesClearedInfo);
+      clearedLinesInfo.value = {
+        count: gameState.linesClearedInfo.count,
+        rowIndices: gameState.linesClearedInfo.rowIndices,
+        timestamp: Date.now(), // Pour forcer la réactivité
+      };
+
+      // Réinitialiser après l'animation
+      setTimeout(() => {
+        clearedLinesInfo.value = null;
+      }, 1000);
+    }
+
     if (gameState.gameState.gameOver) {
       isGameOver.value = true;
       currentPiece.value = null;

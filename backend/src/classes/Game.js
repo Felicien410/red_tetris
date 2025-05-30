@@ -163,16 +163,16 @@ class Game {
 
       if (direction === "down") {
         console.log("Locking piece at bottom");
-        // Verrouillez d'abord la pièce et mettez à jour le compteur
         await this.lockPiece();
-        const linesCleared = this.clearLines();
+        const clearLinesInfo = this.clearLines();
+        const numberOfLinesCleared = clearLinesInfo.count;
+        const linesClearedIndices = clearLinesInfo.clearedRows;
 
         console.log(
           "Number of blocks placed after locking:",
           this.playerBlocksPlaced,
         );
 
-        // Générez la prochaine pièce seulement après la mise à jour du compteur
         const spawnSuccess = await this.spawnPiece();
 
         if (!spawnSuccess) {
@@ -180,7 +180,11 @@ class Game {
           this.isPlaying = false;
         }
 
-        return { locked: true, linesCleared };
+        return {
+          locked: true,
+          linesCleared: numberOfLinesCleared,
+          clearedRows: linesClearedIndices,
+        };
       }
       return false;
     }
@@ -282,10 +286,12 @@ class Game {
   // Vérifie et efface les lignes complètes
   clearLines() {
     let linesCleared = 0;
+    const clearedRowsIndices = [];
     // iteration a partir du bas du tableau
     for (let row = BOARD.HEIGHT - 1; row >= 0; row--) {
       //si chaque cellule == 1 alors on efface la ligne
       if (this.board[row].every((cell) => cell !== 0)) {
+        clearedRowsIndices.push(row);
         //enlever la ligne
         this.board.splice(row, 1);
         //creer une nouvelle ligne vide en haut
@@ -301,7 +307,7 @@ class Game {
       this.updateLevel();
     }
 
-    return linesCleared;
+    return { count: linesCleared, clearedRows: clearedRowsIndices };
   }
 
   // Met à jour le score en fonction des lignes effacées

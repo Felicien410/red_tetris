@@ -74,7 +74,7 @@ class GameLogicService {
         return null;
       }
 
-      await game.movePiece(direction);
+      const moveResult = await game.movePiece(direction);
       const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
       const roomData = await this.redisClient.hGetAll(roomKey);
       const players = JSON.parse(roomData.players);
@@ -84,6 +84,13 @@ class GameLogicService {
         gameState: game.getState(),
         players: players,
         isPlaying: roomData.isPlaying === "true",
+        linesClearedInfo:
+          moveResult && moveResult.clearedRows
+            ? {
+                count: moveResult.linesCleared,
+                rowIndices: moveResult.clearedRows,
+              }
+            : null,
       };
     } catch (error) {
       console.error("handleMove error:", error);

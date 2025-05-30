@@ -1,27 +1,101 @@
 <!-- src/components/TetrisGrid.vue -->
 <template>
   <div class="tetris-grid">
-    <div v-for="(row, y) in grid" :key="y" class="row">
+    <div
+      v-for="(row, y) in grid"
+      :key="y"
+      class="row"
+      :class="{
+        'clearing-line': clearingRows.includes(y),
+        'row-cleared': clearedRows.includes(y),
+      }"
+    >
       <div
         v-for="(cell, x) in row"
         :key="x"
-        :class="['cell', cellClass(cell)]"
+        :class="[
+          'cell',
+          cellClass(cell),
+          {
+            'cell-clearing': clearingRows.includes(y),
+            'cell-flash': flashingCells.some(
+              (flash) => flash.row === y && flash.col === x,
+            ),
+          },
+        ]"
       ></div>
     </div>
   </div>
 </template>
 
 <script setup>
+import { ref, watch } from "vue";
 const props = defineProps({
   grid: {
     type: Array,
     required: true,
+  },
+  clearedLinesInfo: {
+    type: Object,
+    default: null,
   },
 });
 
 const cellClass = (value) => {
   return value ? `filled filled-${value}` : "empty";
 };
+const clearingRows = ref([]);
+const clearedRows = ref([]);
+const flashingCells = ref([]);
+
+const animateLineClearing = async (rowIndices) => {
+  if (!rowIndices || rowIndices.length === 0) return;
+
+  console.log("🎬 Starting line clearing animation for rows:", rowIndices);
+
+  // Phase 1: Flash des cellules individuelles
+  flashingCells.value = [];
+  rowIndices.forEach((rowIndex) => {
+    for (let col = 0; col < (props.grid[rowIndex]?.length || 10); col++) {
+      flashingCells.value.push({ row: rowIndex, col });
+    }
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 200));
+
+  // Phase 2: Marquer les lignes comme en cours de suppression
+  clearingRows.value = [...rowIndices];
+  flashingCells.value = [];
+
+  await new Promise((resolve) => setTimeout(resolve, 400));
+
+  // Phase 3: Marquer comme supprimées (disparition complète)
+  clearedRows.value = [...rowIndices];
+
+  await new Promise((resolve) => setTimeout(resolve, 300));
+
+  // Phase 4: Nettoyer les états d'animation
+  clearingRows.value = [];
+  clearedRows.value = [];
+
+  console.log("✅ Line clearing animation completed");
+};
+
+// Watcher pour déclencher l'animation quand des lignes sont supprimées
+watch(
+  () => props.clearedLinesInfo,
+  (newInfo) => {
+    console.log("📥 Received clearedLinesInfo:", newInfo);
+    if (newInfo && newInfo.rowIndices && newInfo.rowIndices.length > 0) {
+      animateLineClearing(newInfo.rowIndices);
+    }
+  },
+  { deep: true },
+);
+
+defineExpose({
+  animateLineClearing,
+});
 </script>
 
 <style scoped>
@@ -129,5 +203,108 @@ const cellClass = (value) => {
 
 .cell.filled-L {
   background: linear-gradient(to bottom right, #ff9900, #cc7a00);
+}
+
+.cell.cell-flash {
+  animation: cellFlash 0.2s ease-in-out;
+}
+
+.cell.cell-clearing {
+  animation: cellDissolve 0.4s ease-in-out;
+}
+
+@keyframes cellFlash {
+  0% {
+    transform: scale(1);
+    box-shadow:
+      inset 0 2px 3px rgba(255, 255, 255, 0.3),
+      inset 0 -2px 3px rgba(0, 0, 0, 0.3),
+      0 2px 4px rgba(0, 0, 0, 0.4);
+  }
+  50% {
+    transform: scale(1.15);
+    box-shadow:
+      0 0 20px rgba(255, 255, 255, 0.9),
+      0 0 40px rgba(255, 255, 255, 0.6),
+      inset 0 0 20px rgba(255, 255, 255, 0.4);
+    filter: brightness(1.8);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow:
+      inset 0 2px 3px rgba(255, 255, 255, 0.3),
+      inset 0 -2px 3px rgba(0, 0, 0, 0.3),
+      0 2px 4px rgba(0, 0, 0, 0.4);
+  }
+}
+
+@keyframes lineClearing {
+  0% {
+    transform: scaleX(1);
+    opacity: 1;
+  }
+  25% {
+    transform: scaleX(1.08);
+    opacity: 1;
+    filter: brightness(1.4);
+  }
+  50% {
+    transform: scaleX(1.15);
+    opacity: 0.8;
+    filter: brightness(1.7) blur(1px);
+  }
+  75% {
+    transform: scaleX(0.85);
+    opacity: 0.4;
+    filter: brightness(2.2) blur(2px);
+  }
+  100% {
+    transform: scaleX(0);
+    opacity: 0;
+    filter: brightness(3) blur(3px);
+  }
+}
+
+@keyframes cellDissolve {
+  0% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+  25% {
+    opacity: 0.85;
+    transform: scale(1.12) rotate(3deg);
+  }
+  50% {
+    opacity: 0.65;
+    transform: scale(0.88) rotate(-3deg);
+    filter: blur(1px);
+  }
+  75% {
+    opacity: 0.35;
+    transform: scale(0.65) rotate(2deg);
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0) rotate(0deg);
+    filter: blur(3px);
+  }
+}
+
+/* Effet de pulsation pour le grid entier quand des lignes sont supprimées */
+.tetris-grid:has(.clearing-line) {
+  animation: gridPulse 0.1s ease-in-out;
+}
+
+@keyframes gridPulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.015);
+  }
+  100% {
+    transform: scale(1);
+  }
 }
 </style>
