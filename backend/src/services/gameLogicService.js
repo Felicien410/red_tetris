@@ -122,9 +122,17 @@ class GameLogicService {
       const game = playerGames.get(playerId);
       if (!game) return null;
 
-      const didFall = await game.fallPiece();
-      if (didFall) {
-        return { gameState: game.getState() };
+      const fallResult = await game.fallPiece();
+      if (fallResult) {
+        return {
+          gameState: game.getState(),
+          linesClearedInfo: fallResult.linesCleared
+            ? {
+                count: fallResult.linesCleared,
+                rowIndices: fallResult.clearedRows,
+              }
+            : null,
+        };
       }
     } catch (error) {
       console.error("handleFall error:", error);

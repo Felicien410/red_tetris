@@ -224,14 +224,14 @@ class Game {
   async fallPiece() {
     if (!this.currentPiece || !this.isPlaying || this.isPaused) return false;
 
-    let moved = false;
-
     while (true) {
       this.currentPiece.position.y += 1;
       if (this.checkCollision(this.currentPiece)) {
         this.currentPiece.position.y -= 1;
         await this.lockPiece();
-        this.clearLines();
+        const clearLinesInfo = this.clearLines();
+        const numberOfLinesCleared = clearLinesInfo.count;
+        const linesClearedIndices = clearLinesInfo.clearedRows;
 
         const spawnSuccess = await this.spawnPiece();
         if (!spawnSuccess) {
@@ -239,9 +239,12 @@ class Game {
           this.isPlaying = false;
         }
 
-        return true;
+        return {
+          locked: true,
+          linesCleared: numberOfLinesCleared,
+          clearedRows: linesClearedIndices,
+        };
       }
-      moved = true;
     }
   }
 
