@@ -52,6 +52,13 @@ body {
   box-shadow: 0 6px 16px rgba(255, 122, 41, 0.3);
 }
 
+.v-btn:disabled {
+  box-shadow: none !important;
+  transform: none !important;
+  color: white !important;
+  background-color: #9e9e9e !important;
+}
+
 body.dark-mode .v-btn {
   background-color: var(--soft-black) !important;
   color: var(--text-color) !important;

@@ -55,6 +55,39 @@ function setupDebugRoute(app, redisClient) {
 // Configuration des routes principales
 function setupMainRoutes(app, redisClient, connectedSockets) {
   console.log("Setting up main routes");
+  
+  // API endpoint to list active rooms
+  app.get("/api/rooms", async (req, res) => {
+    try {
+      const gameKeys = await redisClient.keys(`${REDIS_KEYS.GAME_PREFIX}*`);
+      const activeRooms = [];
+
+      for (const key of gameKeys) {
+        const roomData = await redisClient.hGetAll(key);
+        const players = JSON.parse(roomData.players || "[]");
+        
+        // Filter out empty rooms and rooms with disconnected players
+        const connectedPlayers = players.filter(p => p.socketId && connectedSockets.has(p.socketId));
+        
+        if (connectedPlayers.length > 0) {
+          const roomId = key.replace(REDIS_KEYS.GAME_PREFIX, "");
+          activeRooms.push({
+            roomId,
+            playerCount: connectedPlayers.length,
+            maxPlayers: MAX_PLAYERS,
+            isPlaying: roomData.isPlaying === "true",
+            players: connectedPlayers.map(p => ({ name: p.name, isLeader: p.isLeader }))
+          });
+        }
+      }
+
+      res.json({ rooms: activeRooms });
+    } catch (error) {
+      console.error("Error fetching rooms:", error);
+      res.status(500).json({ error: "Failed to fetch rooms" });
+    }
+  });
+
   app.get("/:room/:player_name", (req, res) => {
     console.log("GET /:room/:player_name");
     res.sendFile(path.join(__dirname, "../public", "index.html"));
@@ -67,18 +100,12 @@ function setupMainRoutes(app, redisClient, connectedSockets) {
     try {
       const roomKey = `${REDIS_KEYS.GAME_PREFIX}${room}`;
       const roomExists = await redisClient.exists(roomKey);
-      let players = [];
 
       if (roomExists) {
         const roomData = await redisClient.hGetAll(roomKey);
-        players = JSON.parse(roomData.players);
+        const players = JSON.parse(roomData.players || "[]");
 
-        // Nettoyage des joueurs déconnectés
-        players = players.filter((p) => {
-          const isConnected = p.id && connectedSockets.has(p.id);
-          return isConnected;
-        });
-
+        // Basic validation - detailed player management happens in socket handler
         if (players.length >= MAX_PLAYERS) {
           return res
             .status(400)
@@ -90,21 +117,12 @@ function setupMainRoutes(app, redisClient, connectedSockets) {
             .status(400)
             .json({ error: "Player name already exists in this room" });
         }
+
+        res.json({ room, canJoin: true });
+      } else {
+        // Room doesn't exist, it will be created in the socket handler
+        res.json({ room, canJoin: true });
       }
-
-      const newPlayer = {
-        id: null,
-        name: player_name,
-        isLeader: players.length === 0,
-      };
-      players.push(newPlayer);
-
-      await redisClient.hSet(roomKey, {
-        players: JSON.stringify(players),
-        isPlaying: "false",
-      });
-
-      res.json({ room, players, isPlaying: false });
     } catch (error) {
       console.error("Error:", error);
       res.status(500).json({ error: "Internal Server Error" });
@@ -134,15 +152,37 @@ function setupSocketHandlers(socket, server) {
       let players = JSON.parse(roomData.players || "[]");
 
       const playerIndex = players.findIndex((p) => p.name === pseudo);
+      console.log(`Player "${pseudo}" joining room "${room}". Found existing player at index: ${playerIndex}`);
+      console.log('Current players:', players.map(p => ({ name: p.name, socketId: p.socketId })));
+      
       if (playerIndex !== -1) {
-        // Mise à jour du joueur existant
+        const existingPlayer = players[playerIndex];
+        console.log(`Existing player "${pseudo}" found:`, { socketId: existingPlayer.socketId, isConnected: existingPlayer.socketId ? server.connectedSockets.has(existingPlayer.socketId) : false });
+        
+        // Check if this is a different socket trying to use the same name
+        if (existingPlayer.socketId && 
+            existingPlayer.socketId !== socket.id && 
+            server.connectedSockets.has(existingPlayer.socketId)) {
+          console.log(`Player name "${pseudo}" is already taken by a different connected socket`);
+          throw new Error(`Player name "${pseudo}" is already taken in this room`);
+        }
+        
+        // This is either a reconnection or the first socket connection for this player
+        console.log(`Updating existing player "${pseudo}" with new socket ID`);
         const player = new Player(pseudo, room);
         player.setSocketId(socket.id);
-        player.setLeader(players[playerIndex].isLeader);
-        player.blocksPlaced = players[playerIndex].blocksPlaced || 0;
+        player.setLeader(existingPlayer.isLeader);
+        player.blocksPlaced = existingPlayer.blocksPlaced || 0;
         players[playerIndex] = player.toJSON();
       } else {
+        // Check room capacity before adding new player
+        if (players.length >= MAX_PLAYERS) {
+          console.log(`Room "${room}" is full, cannot add player "${pseudo}"`);
+          throw new Error("Room is full");
+        }
+        
         // Création d'un nouveau joueur
+        console.log(`Adding new player "${pseudo}" to room "${room}"`);
         const player = new Player(pseudo, room);
         player.setSocketId(socket.id);
         player.setLeader(players.length === 0);

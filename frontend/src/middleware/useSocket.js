@@ -10,6 +10,11 @@ const rawBoard = ref(createEmptyGrid());
 const currentPiece = ref(null);
 const nextPiece = ref(null);
 const isConnected = ref(false);
+const roomState = ref({
+  roomId: null,
+  players: [],
+  isPlaying: false,
+});
 let listenersAttached = false;
 
 function connectToRoom(room, pseudo) {
@@ -103,12 +108,56 @@ function setupConnectionListeners() {
   });
 }
 
+// Multiplayer-specific functions
+function joinRoom(roomId, pseudo) {
+  return connectToRoom(roomId, pseudo);
+}
+
+function leaveRoom() {
+  if (roomState.value.roomId) {
+    socket.emit("leave-room", { roomId: roomState.value.roomId });
+    roomState.value = {
+      roomId: null,
+      players: [],
+      isPlaying: false,
+    };
+  }
+}
+
+function onRoomUpdate(callback) {
+  socket.on("room-update", (data) => {
+    console.log("🏠 Room update received:", data);
+    roomState.value = {
+      roomId: data.room,
+      players: data.players,
+      isPlaying: data.isPlaying,
+    };
+    callback(data);
+  });
+}
+
+function onPlayerJoined(callback) {
+  socket.on("player-joined", callback);
+}
+
+function onPlayerLeft(callback) {
+  socket.on("player-left", callback);
+}
+
+function onPlayerDisconnected(callback) {
+  socket.on("player-disconnected", callback);
+}
+
 function removeAllListeners() {
   socket.off("connect");
   socket.off("disconnect");
   socket.off("error");
   socket.off("game-started");
   socket.off("game-update");
+  socket.off("room-update");
+  socket.off("player-joined");
+  socket.off("player-left");
+  socket.off("player-disconnected");
   listenersAttached = false;
 }
 
@@ -120,6 +169,7 @@ export function useSocket() {
     currentPiece,
     nextPiece,
     isConnected,
+    roomState,
     connectToRoom,
     startGame,
     movePiece,
@@ -129,5 +179,13 @@ export function useSocket() {
     onGameUpdate,
     resetGameState,
     disconnect,
+    // Multiplayer-specific functions
+    joinRoom,
+    leaveRoom,
+    onRoomUpdate,
+    onPlayerJoined,
+    onPlayerLeft,
+    onPlayerDisconnected,
+    socket, // Export socket for direct access in components
   };
 }

@@ -46,6 +46,7 @@
     </div>
   </v-container>
 </template>
+
 <script setup>
 import { ref, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
@@ -80,6 +81,7 @@ const startMultiplayer = () => {
   router.push("/multiplayer");
 };
 </script>
+
 <style scoped>
 .custom-text-field :deep(.v-field) {
   background-color: var(--text-color);
