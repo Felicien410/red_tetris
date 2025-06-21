@@ -667,24 +667,6 @@ onBeforeUnmount(() => {
   gap: 16px;
 }
 
-/* Start button inherits same styling */
-.start-btn {
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  border-radius: 12px !important;
-  background-color: var(--secondary-color) !important;
-  color: var(--text-color) !important;
-  font-weight: bold;
-  box-shadow: 0 8px 40px rgba(0, 255, 255, 0.2) !important;
-  min-height: 48px;
-  font-size: 16px;
-  transition: all 0.3s ease !important;
-}
-
-.start-btn:hover {
-  box-shadow: 0 8px 40px rgba(0, 255, 255, 0.3) !important;
-  transform: scale(1.02) !important;
-}
-
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .room-input-container {
@@ -704,8 +686,8 @@ onBeforeUnmount(() => {
 }
 
 .leave-btn {
-  border: 1px solid rgba(255, 100, 100, 0.5);
-  color: #ff6b6b;
+  background-color: #ff6b6b !important;
+  color: white !important;
 }
 
 .next-piece-card,
