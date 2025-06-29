@@ -79,8 +79,8 @@ class GameLogicService {
       const roomData = await this.redisClient.hGetAll(roomKey);
       const players = JSON.parse(roomData.players);
 
-      // La mise à jour des blocs est déjà gérée dans game.lockPiece()
-      return {
+      // Return both single player update and complete room state
+      const playerUpdate = {
         gameState: game.getState(),
         players: players,
         isPlaying: roomData.isPlaying === "true",
@@ -91,6 +91,13 @@ class GameLogicService {
                 rowIndices: moveResult.clearedRows,
               }
             : null,
+      };
+
+      const roomUpdate = await this.getRoomGameStates(roomId);
+      
+      return {
+        playerUpdate,
+        roomUpdate,
       };
     } catch (error) {
       console.error("handleMove error:", error);
@@ -107,7 +114,14 @@ class GameLogicService {
       if (!game) return null;
 
       game.rotatePiece();
-      return { gameState: game.getState() };
+      
+      const playerUpdate = { gameState: game.getState() };
+      const roomUpdate = await this.getRoomGameStates(roomId);
+      
+      return {
+        playerUpdate,
+        roomUpdate,
+      };
     } catch (error) {
       console.error("handleRotation error", error);
       return null;
@@ -124,7 +138,7 @@ class GameLogicService {
 
       const fallResult = await game.fallPiece();
       if (fallResult) {
-        return {
+        const playerUpdate = {
           gameState: game.getState(),
           linesClearedInfo: fallResult.linesCleared
             ? {
@@ -132,6 +146,13 @@ class GameLogicService {
                 rowIndices: fallResult.clearedRows,
               }
             : null,
+        };
+
+        const roomUpdate = await this.getRoomGameStates(roomId);
+        
+        return {
+          playerUpdate,
+          roomUpdate,
         };
       }
     } catch (error) {
@@ -166,6 +187,36 @@ class GameLogicService {
 
   async getGame(roomId) {
     return this.games.get(roomId);
+  }
+
+  async getRoomGameStates(roomId) {
+    const playerGames = this.games.get(roomId);
+    if (!playerGames) {
+      return null;
+    }
+
+    const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
+    const roomData = await this.redisClient.hGetAll(roomKey);
+    const players = JSON.parse(roomData.players || "[]");
+
+    const gameStates = [];
+    for (const player of players) {
+      const game = playerGames.get(player.socketId);
+      if (game) {
+        gameStates.push({
+          playerId: player.socketId,
+          playerName: player.name,
+          gameState: game.getState(),
+        });
+      }
+    }
+
+    return {
+      roomId,
+      players,
+      gameStates,
+      isPlaying: roomData.isPlaying === "true",
+    };
   }
 }
 

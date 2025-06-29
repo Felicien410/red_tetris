@@ -305,8 +305,11 @@ function setupSocketHandlers(socket, server) {
         data.direction,
       );
       if (gameUpdate) {
-        // Envoyer la mise à jour uniquement au joueur concerné
-        server.io.to(socket.id).emit("game-update", gameUpdate);
+        // Envoyer la mise à jour au joueur concerné
+        server.io.to(socket.id).emit("game-update", gameUpdate.playerUpdate);
+        
+        // Envoyer la mise à jour multiplayer à tous les joueurs de la room
+        server.io.to(socket.roomId).emit("multiplayer-update", gameUpdate.roomUpdate);
       }
     }
   });
@@ -318,8 +321,11 @@ function setupSocketHandlers(socket, server) {
         socket.id, // Ajout de l'ID du joueur
       );
       if (gameUpdate) {
-        // Envoyer la mise à jour uniquement au joueur concerné
-        server.io.to(socket.id).emit("game-update", gameUpdate);
+        // Envoyer la mise à jour au joueur concerné
+        server.io.to(socket.id).emit("game-update", gameUpdate.playerUpdate);
+        
+        // Envoyer la mise à jour multiplayer à tous les joueurs de la room
+        server.io.to(socket.roomId).emit("multiplayer-update", gameUpdate.roomUpdate);
       }
     }
   });
@@ -331,8 +337,11 @@ function setupSocketHandlers(socket, server) {
         socket.id, // Ajout de l'ID du joueur
       );
       if (gameUpdate) {
-        // Envoyer la mise à jour uniquement au joueur concerné
-        server.io.to(socket.id).emit("game-update", gameUpdate);
+        // Envoyer la mise à jour au joueur concerné
+        server.io.to(socket.id).emit("game-update", gameUpdate.playerUpdate);
+        
+        // Envoyer la mise à jour multiplayer à tous les joueurs de la room
+        server.io.to(socket.roomId).emit("multiplayer-update", gameUpdate.roomUpdate);
       }
     }
   });
@@ -368,7 +377,8 @@ function startPlayerGameLoop(roomId, playerId, server) {
       );
 
       if (gameUpdate) {
-        server.io.to(playerId).emit("game-update", gameUpdate);
+        server.io.to(playerId).emit("game-update", gameUpdate.playerUpdate);
+        server.io.to(roomId).emit("multiplayer-update", gameUpdate.roomUpdate);
       }
       if (gameInstance.gameOver) {
         stopGameLoop(roomId, playerId, server);

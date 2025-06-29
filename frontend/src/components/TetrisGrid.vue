@@ -2,7 +2,7 @@
 <template>
   <div class="tetris-grid">
     <div
-      v-for="(row, y) in grid"
+      v-for="(row, y) in displayGrid"
       :key="y"
       class="row"
       :class="{
@@ -29,7 +29,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 const props = defineProps({
   grid: {
     type: Array,
@@ -39,6 +39,50 @@ const props = defineProps({
     type: Object,
     default: null,
   },
+  currentPiece: {
+    type: Object,
+    default: null,
+  },
+  isCurrentPlayer: {
+    type: Boolean,
+    default: true,
+  },
+});
+
+// Computed property for display grid with falling piece
+const displayGrid = computed(() => {
+  if (!props.grid) return [];
+  
+  // If no current piece, just return the base grid
+  if (!props.currentPiece) {
+    return props.grid;
+  }
+  
+  // Clone the grid to avoid mutating the original
+  const gridCopy = props.grid.map(row => [...row]);
+  const { shape, position, type } = props.currentPiece;
+  
+  // Add the falling piece to the display grid
+  if (shape && position) {
+    shape.forEach((row, y) => {
+      row.forEach((cell, x) => {
+        if (cell) {
+          const boardY = y + position.y;
+          const boardX = x + position.x;
+          if (
+            boardY >= 0 &&
+            boardY < gridCopy.length &&
+            boardX >= 0 &&
+            boardX < gridCopy[0].length
+          ) {
+            gridCopy[boardY][boardX] = type;
+          }
+        }
+      });
+    });
+  }
+  
+  return gridCopy;
 });
 
 const cellClass = (value) => {
@@ -104,8 +148,9 @@ defineExpose({
   grid-template-rows: repeat(20, 1fr);
   gap: 1px;
   aspect-ratio: 10 / 20;
-  height: 99vh;
+  height: 100%;
   width: auto;
+  max-height: 80vh;
   background: var(--grid-background);
 }
 

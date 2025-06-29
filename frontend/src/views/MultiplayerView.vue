@@ -3,8 +3,22 @@
   <v-container class="multiplayer-container" pa-0 fluid>
     <!-- Room Lobby State -->
     <div v-if="!isGameStarted" class="lobby-container">
-      <v-row justify="center">
-        <v-col cols="12" md="8" lg="6">
+      <!-- Back Navigation -->
+      <div class="back-navigation">
+        <v-btn
+          icon
+          size="large"
+          @click="goHome"
+          class="back-btn"
+        >
+          <v-icon>mdi-arrow-left</v-icon>
+        </v-btn>
+      </div>
+      
+      <!-- Main Lobby Content -->
+      <div class="lobby-content">
+        <v-row justify="center">
+          <v-col cols="12" md="8" lg="6">
           <v-card class="lobby-card pa-8" outlined>
             <v-card-title
               class="text-h4 text-center mb-6"
@@ -64,23 +78,50 @@
               v-if="!roomId && activeRooms.length > 0"
               class="active-rooms mb-6"
             >
-              <h4 class="text-h6 mb-3" style="color: var(--text-color)">
-                Active Rooms ({{ activeRooms.length }})
-              </h4>
-              <v-list class="rooms-list">
-                <v-list-item
+              <div class="section-header mb-4">
+                <v-icon class="section-icon mr-2">mdi-home-group</v-icon>
+                <h4 class="section-title">
+                  Active Rooms ({{ activeRooms.length }})
+                </h4>
+              </div>
+              
+              <div class="rooms-grid">
+                <v-card
                   v-for="room in activeRooms"
                   :key="room.roomId"
-                  class="room-item"
+                  class="room-card"
                   @click="joinSpecificRoom(room.roomId)"
-                  :disabled="
-                    room.isPlaying || room.playerCount >= room.maxPlayers
-                  "
+                  :class="{
+                    'room-disabled': room.isPlaying || room.playerCount >= room.maxPlayers
+                  }"
+                  outlined
                 >
-                  <v-list-item-content>
-                    <v-list-item-title class="room-title">
-                      {{ room.roomId }}
+                  <v-card-text class="room-content">
+                    <!-- Room Header -->
+                    <div class="room-header">
+                      <div class="room-info">
+                        <v-icon class="room-icon mr-2">mdi-door-open</v-icon>
+                        <span class="room-name">{{ room.roomId }}</span>
+                      </div>
                       <v-chip
+                        :color="
+                          room.isPlaying
+                            ? 'error'
+                            : room.playerCount >= room.maxPlayers
+                              ? 'warning'
+                              : 'secondary'
+                        "
+                        size="small"
+                        class="status-chip"
+                      >
+                        {{ room.playerCount }}/{{ room.maxPlayers }}
+                      </v-chip>
+                    </div>
+                    
+                    <!-- Room Status -->
+                    <div class="room-status">
+                      <v-icon 
+                        class="status-icon mr-1"
                         :color="
                           room.isPlaying
                             ? 'error'
@@ -88,25 +129,36 @@
                               ? 'warning'
                               : 'success'
                         "
-                        size="small"
-                        class="ml-2"
                       >
-                        {{ room.playerCount }}/{{ room.maxPlayers }}
                         {{
                           room.isPlaying
-                            ? " (Playing)"
+                            ? 'mdi-play-circle'
                             : room.playerCount >= room.maxPlayers
-                              ? " (Full)"
-                              : " (Waiting)"
+                              ? 'mdi-lock'
+                              : 'mdi-clock-time-four'
                         }}
-                      </v-chip>
-                    </v-list-item-title>
-                    <v-list-item-subtitle class="room-players">
-                      Players: {{ room.players.map((p) => p.name).join(", ") }}
-                    </v-list-item-subtitle>
-                  </v-list-item-content>
-                </v-list-item>
-              </v-list>
+                      </v-icon>
+                      <span class="status-text">
+                        {{
+                          room.isPlaying
+                            ? "Playing"
+                            : room.playerCount >= room.maxPlayers
+                              ? "Full"
+                              : "Waiting"
+                        }}
+                      </span>
+                    </div>
+                    
+                    <!-- Players List -->
+                    <div class="room-players">
+                      <v-icon class="players-icon mr-1">mdi-account-multiple</v-icon>
+                      <span class="players-list">
+                        {{ room.players.map((p) => p.name).join(", ") }}
+                      </span>
+                    </div>
+                  </v-card-text>
+                </v-card>
+              </div>
             </div>
 
             <!-- No Active Rooms Message -->
@@ -133,19 +185,20 @@
                   :key="player.name"
                   class="player-item"
                 >
-                  <v-list-item-content>
-                    <v-list-item-title class="player-name">
-                      {{ player.name }}
-                      <v-chip
-                        v-if="player.isLeader"
-                        size="small"
-                        color="primary"
-                        class="ml-2"
-                      >
-                        Leader
-                      </v-chip>
-                    </v-list-item-title>
-                  </v-list-item-content>
+                  <template v-slot:prepend>
+                    <v-icon class="player-list-icon">mdi-account</v-icon>
+                  </template>
+                  
+                  <v-list-item-title class="player-name">
+                    {{ player.name }}
+                    <v-icon
+                      v-if="player.isLeader"
+                      class="leader-crown ml-2"
+                      color="warning"
+                    >
+                      mdi-crown
+                    </v-icon>
+                  </v-list-item-title>
                 </v-list-item>
               </v-list>
 
@@ -173,102 +226,96 @@
           </v-card>
         </v-col>
       </v-row>
+      </div>
     </div>
 
     <!-- Game State -->
     <div v-else class="game-container">
-      <v-row align="start" justify="center">
-        <!-- Player 1 Board -->
-        <v-col cols="12" md="6" lg="5">
-          <div class="player-board">
-            <h3
-              class="text-h6 text-center mb-2"
-              style="color: var(--text-color)"
-            >
-              {{ currentPlayer?.name }} (You)
-            </h3>
+      <div class="game-layout">
+        <!-- Player 1 Section -->
+        <div class="player-section">
+          <div class="player-header">
+            <v-icon class="player-icon">mdi-account</v-icon>
+            <span class="player-name">{{ currentPlayer?.name }} (You)</span>
+            <v-icon class="score-icon">mdi-star</v-icon>
+            <span class="score-value">{{ score }}</span>
+          </div>
+          <div class="grid-container">
             <TetrisGrid
-              :grid="displayBoard"
+              :grid="myGameState.board"
+              :currentPiece="myGameState.currentPiece"
               :clearedLinesInfo="clearedLinesInfo"
               :isCurrentPlayer="true"
             />
-            <div class="score-display mt-3 text-center">
-              <span class="text-h6" style="color: var(--text-color)">
-                Score: {{ score }}
-              </span>
-            </div>
           </div>
-        </v-col>
+        </div>
 
-        <!-- Player 2 Board -->
-        <v-col cols="12" md="6" lg="5" v-if="opponentData">
-          <div class="player-board">
-            <h3
-              class="text-h6 text-center mb-2"
+        <!-- Center Controls -->
+        <div class="center-controls">
+          <!-- Next Piece -->
+          <v-card class="next-piece-card pa-4 mb-4" outlined>
+            <v-card-title
+              class="text-h6 text-center mb-3"
               style="color: var(--text-color)"
             >
-              {{ opponentData.name }}
-            </h3>
+              <v-icon class="mr-2">mdi-cube-outline</v-icon>
+              Next Piece
+            </v-card-title>
+            <v-card-text class="d-flex align-center justify-center">
+              <div class="next-piece-display">
+                <table v-if="nextPiece">
+                  <tbody>
+                    <tr
+                      v-for="(row, rowIndex) in PIECE_SHAPES[nextPiece.type]"
+                      :key="rowIndex"
+                    >
+                      <td
+                        v-for="(cell, cellIndex) in row"
+                        :key="cellIndex"
+                        :class="[
+                          'next-cell',
+                          cell ? 'filled filled-' + nextPiece.type : 'empty',
+                        ]"
+                      ></td>
+                    </tr>
+                  </tbody>
+                </table>
+                <span v-else>?</span>
+              </div>
+            </v-card-text>
+          </v-card>
+
+          <!-- Leave Game Button -->
+          <v-btn
+            class="leave-btn"
+            @click="leaveGame"
+            variant="outlined"
+            size="large"
+            block
+          >
+            <v-icon class="mr-2">mdi-exit-to-app</v-icon>
+            Leave Game
+          </v-btn>
+        </div>
+
+        <!-- Player 2 Section -->
+        <div class="player-section" v-if="opponentData">
+          <div class="player-header">
+            <v-icon class="player-icon">mdi-account</v-icon>
+            <span class="player-name">{{ opponentData.name }}</span>
+            <v-icon class="score-icon">mdi-star</v-icon>
+            <span class="score-value">{{ opponentData.score }}</span>
+          </div>
+          <div class="grid-container">
             <TetrisGrid
               :grid="opponentData.board"
+              :currentPiece="opponentData.currentPiece"
               :clearedLinesInfo="opponentData.clearedLinesInfo"
               :isCurrentPlayer="false"
             />
-            <div class="score-display mt-3 text-center">
-              <span class="text-h6" style="color: var(--text-color)">
-                Score: {{ opponentData.score }}
-              </span>
-            </div>
           </div>
-        </v-col>
-
-        <!-- Game Info Panel -->
-        <v-col cols="12" lg="2">
-          <div class="game-info">
-            <!-- Next Piece -->
-            <v-card class="next-piece-card pa-3 mb-4" outlined>
-              <v-card-title
-                class="text-h6 text-center"
-                style="color: var(--text-color)"
-              >
-                Next Piece
-              </v-card-title>
-              <v-card-text class="d-flex align-center justify-center">
-                <div class="next-piece-display">
-                  <table v-if="nextPiece">
-                    <tbody>
-                      <tr
-                        v-for="(row, rowIndex) in PIECE_SHAPES[nextPiece.type]"
-                        :key="rowIndex"
-                      >
-                        <td
-                          v-for="(cell, cellIndex) in row"
-                          :key="cellIndex"
-                          :class="[
-                            'next-cell',
-                            cell ? 'filled filled-' + nextPiece.type : 'empty',
-                          ]"
-                        ></td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <span v-else>?</span>
-                </div>
-              </v-card-text>
-            </v-card>
-
-            <!-- Leave Game Button -->
-            <v-btn
-              class="leave-btn"
-              @click="leaveGame"
-              variant="outlined"
-              block
-            >
-              Leave Game
-            </v-btn>
-          </div>
-        </v-col>
-      </v-row>
+        </div>
+      </div>
     </div>
 
     <!-- Game Over Modal -->
@@ -298,9 +345,7 @@ import { PIECE_SHAPES } from "@/constants";
 
 const router = useRouter();
 const {
-  rawBoard,
-  currentPiece,
-  nextPiece,
+  multiplayerState,
   isConnected,
   roomState,
   connectToRoom,
@@ -311,6 +356,7 @@ const {
   onGameStarted,
   onGameUpdate,
   resetGameState,
+  resetMultiplayerState,
   disconnect,
   joinRoom,
   leaveRoom,
@@ -318,6 +364,7 @@ const {
   onPlayerJoined,
   onPlayerLeft,
   onPlayerDisconnected,
+  onMultiplayerUpdate,
   socket,
 } = useSocket();
 
@@ -334,38 +381,34 @@ const roomsLoaded = ref(false);
 
 // Game state
 const isGameStarted = ref(false);
-const score = ref(0);
-const opponentData = ref(null);
 const clearedLinesInfo = ref(null);
 const showGameOverModal = ref(false);
 const gameOverMessage = ref("");
 
-// Board display
-const displayBoard = computed(() => {
-  if (!rawBoard.value || !currentPiece.value || showGameOverModal.value) {
-    return rawBoard.value;
-  }
+// Computed properties for multiplayer state
+const myGameState = computed(() => multiplayerState.value.myGameState);
+const opponents = computed(() => multiplayerState.value.opponents);
+const score = computed(() => myGameState.value.score);
+const nextPiece = computed(() => myGameState.value.nextPiece);
 
-  const boardCopy = rawBoard.value.map((row) => [...row]);
-  const { shape, position, type } = currentPiece.value;
 
-  shape.forEach((row, y) => {
-    row.forEach((cell, x) => {
-      if (cell) {
-        const boardY = y + position.y;
-        const boardX = x + position.x;
-        if (
-          boardY >= 0 &&
-          boardY < boardCopy.length &&
-          boardX >= 0 &&
-          boardX < boardCopy[0].length
-        ) {
-          boardCopy[boardY][boardX] = type;
-        }
-      }
-    });
-  });
-  return boardCopy;
+// Opponent data - get first opponent with complete game state
+const opponentData = computed(() => {
+  const firstOpponent = opponents.value[0];
+  if (!firstOpponent) return null;
+  
+  // Find the full game state for this opponent
+  const opponentGameState = multiplayerState.value.roomGameStates.find(
+    gameState => gameState.playerId === firstOpponent.playerId
+  );
+  
+  return {
+    name: firstOpponent.playerName,
+    board: firstOpponent.board,
+    currentPiece: opponentGameState?.gameState.currentPiece || null,
+    score: firstOpponent.score,
+    clearedLinesInfo: null, // Will be handled separately if needed
+  };
 });
 
 // Room management functions
@@ -435,12 +478,12 @@ const leaveRoomHandler = () => {
   leaveRoom();
   disconnect();
   resetGameState();
+  resetMultiplayerState();
   roomId.value = null;
   players.value = [];
   isGameStarted.value = false;
   isLeader.value = false;
   currentPlayer.value = null;
-  opponentData.value = null;
 };
 
 const startMultiplayerGame = () => {
@@ -457,6 +500,7 @@ const goToLobby = () => {
   showGameOverModal.value = false;
   isGameStarted.value = false;
   resetGameState();
+  resetMultiplayerState();
 };
 
 const goHome = () => {
@@ -466,7 +510,7 @@ const goHome = () => {
 
 // Keyboard handling
 const handleKeyPress = (event) => {
-  if (!currentPiece.value || !isGameStarted.value) return;
+  if (!myGameState.value.currentPiece || !isGameStarted.value) return;
 
   switch (event.code) {
     case "ArrowLeft":
@@ -504,9 +548,9 @@ const setupSocketHandlers = () => {
     isGameStarted.value = true;
   });
 
-  // Game updates
+  // Game updates (individual player updates)
   onGameUpdate((gameState) => {
-    console.log("🕹️ Multiplayer game update:", gameState);
+    console.log("🕹️ Individual game update:", gameState);
 
     // Handle line clearing animation
     if (gameState.linesClearedInfo && gameState.linesClearedInfo.count > 0) {
@@ -525,22 +569,21 @@ const setupSocketHandlers = () => {
     if (gameState.gameState.gameOver) {
       gameOverMessage.value = "Game Over";
       showGameOverModal.value = true;
-    } else {
-      score.value = gameState.gameState.score;
     }
+  });
 
-    // Update opponent data (this would need backend support for multiplayer data)
-    // For now, we'll simulate opponent data structure
-    if (players.value.length > 1) {
-      const opponent = players.value.find((p) => p.name !== pseudo);
-      if (opponent) {
-        opponentData.value = {
-          name: opponent.name,
-          board: rawBoard.value, // This should be opponent's board from backend
-          score: 0, // This should be opponent's score from backend
-          clearedLinesInfo: null,
-        };
-      }
+  // Multiplayer room updates (all players' game states)
+  onMultiplayerUpdate((roomData) => {
+    console.log("🎮 Multiplayer room update:", roomData);
+    
+    // Check if any player has game over to show appropriate message
+    const anyPlayerGameOver = roomData.gameStates?.some(
+      (gameState) => gameState.gameState.gameOver
+    );
+    
+    if (anyPlayerGameOver && myGameState.value.gameOver) {
+      gameOverMessage.value = "Game Over";
+      showGameOverModal.value = true;
     }
   });
 
@@ -576,12 +619,39 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow-y: auto;
+  overflow: hidden; /* Prevent scrolling */
 }
 
 .lobby-container {
   width: 100%;
   height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.back-navigation {
+  position: absolute;
+  top: 2rem;
+  left: 2rem;
+  z-index: 10;
+}
+
+.back-btn {
+  background: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.3s ease;
+}
+
+.back-btn:hover {
+  background: var(--secondary-color) !important;
+  transform: translateX(-2px);
+}
+
+.lobby-content {
+  width: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -598,54 +668,232 @@ onBeforeUnmount(() => {
 
 .game-container {
   width: 100%;
-  height: 100%;
-  padding: 16px;
+  height: 100vh;
+  padding: 0;
+  overflow: hidden;
 }
 
-.player-board {
+.game-layout {
+  display: flex;
+  height: 100vh;
+  align-items: center;
+  justify-content: center;
+  gap: 2rem;
+  padding: 1rem;
+}
+
+.player-section {
+  flex: 1;
   display: flex;
   flex-direction: column;
+  max-width: 500px;
+  height: 100%;
+}
+
+.player-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+  padding: 0.75rem 1rem;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+}
+
+.player-icon {
+  font-size: 1.5rem;
+  color: white !important;
+}
+
+.player-name {
+  color: var(--text-color);
+  font-weight: bold;
+  font-size: 1.1rem;
+  margin-right: 1rem;
+}
+
+.score-icon {
+  font-size: 1.2rem;
+  color: white !important;
+}
+
+.score-value {
+  color: var(--text-color);
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+.grid-container {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 80vh; /* Fixed percentage height for grids */
+}
+
+.center-controls {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 1rem;
+  min-width: 200px;
+  max-width: 250px;
+}
+
+/* Make all icons white */
+.v-icon {
+  color: white !important;
+}
+
+/* Section Header */
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.section-icon {
+  color: var(--secondary-color) !important;
+  font-size: 1.5rem;
+}
+
+.section-title {
+  color: var(--text-color);
+  font-weight: bold;
+  margin: 0;
+}
+
+/* Rooms Grid */
+.rooms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+}
+
+.room-card {
+  background: rgba(255, 255, 255, 0.08) !important;
+  border: 1px solid rgba(255, 255, 255, 0.2) !important;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.room-card:hover:not(.room-disabled) {
+  background: rgba(255, 255, 255, 0.15) !important;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+}
+
+.room-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.room-disabled:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.room-content {
+  padding: 1rem !important;
+}
+
+/* Room Header */
+.room-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.room-info {
+  display: flex;
   align-items: center;
 }
 
-.players-list,
-.rooms-list {
+.room-icon {
+  color: var(--secondary-color) !important;
+  font-size: 1.2rem;
+}
+
+.room-name {
+  color: var(--text-color);
+  font-weight: bold;
+  font-size: 1.1rem;
+}
+
+/* Room Status */
+.room-status {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.status-icon {
+  font-size: 1rem;
+}
+
+.status-text {
+  color: var(--text-color);
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+/* Room Players */
+.room-players {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.players-icon {
+  color: var(--text-color) !important;
+  opacity: 0.7;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.room-players .players-list {
+  color: var(--text-color);
+  opacity: 0.8;
+  font-size: 0.85rem;
+  line-height: 1.2;
+}
+
+/* Legacy styles for players section */
+.lobby-card .players-list {
   background: rgba(255, 255, 255, 0.05);
   border-radius: 8px;
   padding: 8px;
 }
 
-.player-item,
-.room-item {
+.player-item {
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   cursor: pointer;
   transition: background-color 0.2s ease;
 }
 
-.player-item:last-child,
-.room-item:last-child {
+.player-item:last-child {
   border-bottom: none;
 }
 
-.room-item:hover:not(.v-list-item--disabled) {
-  background-color: rgba(255, 255, 255, 0.1);
-}
-
-.room-item.v-list-item--disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.player-name,
-.room-title {
+.player-name {
   color: var(--text-color);
   font-weight: bold;
 }
 
-.room-players {
-  color: var(--text-color);
-  opacity: 0.7;
-  font-size: 0.9em;
+.player-list-icon {
+  color: var(--secondary-color) !important;
+  font-size: 1.2rem;
+  margin-right: 0.5rem;
+}
+
+.leader-crown {
+  font-size: 1rem !important;
+  vertical-align: middle;
 }
 
 /* Room input styling to match HomeView */

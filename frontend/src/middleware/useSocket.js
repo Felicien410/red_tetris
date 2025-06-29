@@ -6,9 +6,25 @@ const socket = io("http://localhost:3000");
 
 const createEmptyGrid = () =>
   Array.from({ length: 20 }, () => Array(10).fill(0));
+
+// Solo game state (existing)
 const rawBoard = ref(createEmptyGrid());
 const currentPiece = ref(null);
 const nextPiece = ref(null);
+
+// Multiplayer game state (new)
+const multiplayerState = ref({
+  myGameState: {
+    board: createEmptyGrid(),
+    currentPiece: null,
+    nextPiece: null,
+    score: 0,
+    gameOver: false,
+  },
+  opponents: [],
+  roomGameStates: [],
+});
+
 const isConnected = ref(false);
 const roomState = ref({
   roomId: null,
@@ -148,6 +164,58 @@ function onPlayerDisconnected(callback) {
   socket.on("player-disconnected", callback);
 }
 
+// Multiplayer-specific functions
+function onMultiplayerUpdate(callback) {
+  socket.on("multiplayer-update", (roomData) => {
+    console.log("📦 Multiplayer update received:", roomData);
+    
+    // Update complete room state
+    multiplayerState.value.roomGameStates = roomData.gameStates || [];
+    
+    // Find my game state
+    const myGameData = roomData.gameStates?.find(
+      (gameState) => gameState.playerId === socket.id
+    );
+    
+    if (myGameData) {
+      multiplayerState.value.myGameState = {
+        board: myGameData.gameState.board,
+        currentPiece: myGameData.gameState.currentPiece,
+        nextPiece: myGameData.gameState.nextPiece,
+        score: myGameData.gameState.score,
+        gameOver: myGameData.gameState.gameOver,
+      };
+    }
+    
+    // Update opponents data
+    multiplayerState.value.opponents = roomData.gameStates
+      ?.filter((gameState) => gameState.playerId !== socket.id)
+      .map((gameState) => ({
+        playerId: gameState.playerId,
+        playerName: gameState.playerName,
+        board: gameState.gameState.board,
+        score: gameState.gameState.score,
+        gameOver: gameState.gameState.gameOver,
+      })) || [];
+    
+    callback(roomData);
+  });
+}
+
+function resetMultiplayerState() {
+  multiplayerState.value = {
+    myGameState: {
+      board: createEmptyGrid(),
+      currentPiece: null,
+      nextPiece: null,
+      score: 0,
+      gameOver: false,
+    },
+    opponents: [],
+    roomGameStates: [],
+  };
+}
+
 function removeAllListeners() {
   socket.off("connect");
   socket.off("disconnect");
@@ -158,6 +226,7 @@ function removeAllListeners() {
   socket.off("player-joined");
   socket.off("player-left");
   socket.off("player-disconnected");
+  socket.off("multiplayer-update");
   listenersAttached = false;
 }
 
@@ -165,11 +234,19 @@ setupConnectionListeners();
 
 export function useSocket() {
   return {
+    // Solo game state
     rawBoard,
     currentPiece,
     nextPiece,
+    
+    // Multiplayer game state
+    multiplayerState,
+    
+    // Common state
     isConnected,
     roomState,
+    
+    // Game functions
     connectToRoom,
     startGame,
     movePiece,
@@ -179,6 +256,7 @@ export function useSocket() {
     onGameUpdate,
     resetGameState,
     disconnect,
+    
     // Multiplayer-specific functions
     joinRoom,
     leaveRoom,
@@ -186,6 +264,9 @@ export function useSocket() {
     onPlayerJoined,
     onPlayerLeft,
     onPlayerDisconnected,
+    onMultiplayerUpdate,
+    resetMultiplayerState,
+    
     socket, // Export socket for direct access in components
   };
 }
