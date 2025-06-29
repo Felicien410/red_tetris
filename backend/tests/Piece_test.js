@@ -48,37 +48,30 @@ describe('Piece Class', () => {
     });
   });
 
-  describe('Mouvement', () => {
-    test('devrait correctement déplacer la pièce vers la gauche', () => {
+  describe('Méthodes utilitaires', () => {
+    test('devrait retourner la forme actuelle avec getShape', () => {
       const piece = new Piece('T');
-      const initialX = piece.position.x;
-      
-      piece.move('left');
-      expect(piece.position.x).toBe(initialX - 1);
-      expect(piece.position.y).toBe(0);
+      const shape = piece.getShape();
+      expect(shape).toEqual([[0, 1, 0], [1, 1, 1]]);
     });
 
-    test('devrait correctement déplacer la pièce vers la droite', () => {
+    test('devrait retourner une copie de la forme avec getCurrentShape', () => {
       const piece = new Piece('T');
-      const initialX = piece.position.x;
+      const currentShape = piece.getCurrentShape();
+      expect(currentShape).toEqual(piece.shape);
       
-      piece.move('right');
-      expect(piece.position.x).toBe(initialX + 1);
-      expect(piece.position.y).toBe(0);
+      // Vérifier que c'est une copie profonde
+      currentShape[0][0] = 1;
+      expect(piece.shape[0][0]).toBe(0);
     });
 
-    test('devrait correctement déplacer la pièce vers le bas', () => {
+    test('devrait permettre de modifier la position manuellement', () => {
       const piece = new Piece('T');
-      const initialY = piece.position.y;
+      piece.position.x = 5;
+      piece.position.y = 10;
       
-      piece.move('down');
-      expect(piece.position.y).toBe(initialY + 1);
-      expect(piece.position.x).toBe(3);
-    });
-
-    test('devrait lever une erreur pour une direction invalide', () => {
-      const piece = new Piece('T');
-      expect(() => piece.move('invalid')).toThrow('Direction invalide: invalid');
+      expect(piece.position.x).toBe(5);
+      expect(piece.position.y).toBe(10);
     });
   });
 

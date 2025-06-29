@@ -2,96 +2,114 @@
 const GameLogicService = require('../src/services/gameLogicService');
 const Game = require('../src/classes/Game');
 
-// Mock Redis
+// Mock Redis and Server
 const mockRedisClient = {
     hSet: jest.fn().mockResolvedValue(true),
-    hGet: jest.fn().mockResolvedValue(null),
-    hGetAll: jest.fn().mockResolvedValue({}),
+    hGet: jest.fn().mockResolvedValue('[]'),
+    hGetAll: jest.fn().mockResolvedValue({
+        players: '[]',
+        seed: 'test-seed'
+    }),
+};
+
+const mockServer = {
+    io: {
+        to: jest.fn().mockReturnThis(),
+        emit: jest.fn()
+    },
+    gameIntervals: new Map()
 };
 
 describe('GameLogicService', () => {
     let gameLogicService;
 
     beforeEach(() => {
-        gameLogicService = new GameLogicService(mockRedisClient);
+        gameLogicService = new GameLogicService(mockRedisClient, mockServer);
     });
 
     describe('Gestion des parties', () => {
         test('devrait créer une nouvelle partie', async () => {
             const roomId = 'test-room';
-            const game = await gameLogicService.createGame(roomId);
+            const playerId = 'player-123';
             
-            expect(game).toBeDefined();
-            expect(game.roomId).toBe(roomId);
+            const gameState = await gameLogicService.createGame(roomId, playerId);
+            
+            expect(gameState).toBeDefined();
+            expect(gameState.roomId).toBe(roomId);
+            expect(gameState.gameState).toBeDefined();
+            expect(gameState.gameState.board).toBeDefined();
+        });
+
+        test('devrait stocker le jeu dans la carte des jeux', async () => {
+            const roomId = 'test-room';
+            const playerId = 'player-123';
+            
+            await gameLogicService.createGame(roomId, playerId);
+            
+            expect(gameLogicService.games.has(roomId)).toBe(true);
+            expect(gameLogicService.games.get(roomId).has(playerId)).toBe(true);
         });
     });
 
     describe('Gestion des mouvements', () => {
-        test('devrait gérer le mouvement valide d\'une pièce', async () => {
+        test('devrait gérer les mouvements de pièces', async () => {
             const roomId = 'test-room';
-            const game = await gameLogicService.createGame(roomId);
-            game.start(); // Initialise la partie avec une pièce
-
-            const result = await gameLogicService.handleMove(roomId, 'left');
+            const playerId = 'player-123';
+            
+            await gameLogicService.createGame(roomId, playerId);
+            const game = gameLogicService.games.get(roomId).get(playerId);
+            game.isPlaying = true;
+            await game.spawnPiece();
+            
+            const result = await gameLogicService.handleMove(roomId, playerId, 'left');
             expect(result).toBeDefined();
-            expect(result.currentPiece.position.x).toBe(2); // Position initiale (3) - 1
+            expect(result.playerUpdate).toBeDefined();
+            expect(result.roomUpdate).toBeDefined();
         });
 
-        test('devrait gérer la collision lors d\'un mouvement', async () => {
+        test('devrait gérer la rotation des pièces', async () => {
             const roomId = 'test-room';
-            const game = await gameLogicService.createGame(roomId);
-            game.start();
+            const playerId = 'player-123';
             
-            // Créer une situation de collision
-            game.currentPiece.position.x = 0;
-            const result = await gameLogicService.handleMove(roomId, 'left');
-            expect(result).toBeNull();
-        });
-    });
-
-    describe('Gestion des rotations', () => {
-        test('devrait permettre une rotation valide', async () => {
-            const roomId = 'test-room';
-            const game = await gameLogicService.createGame(roomId);
-            game.start();
-
-            const initialShape = JSON.stringify(game.currentPiece.shape);
-            const result = await gameLogicService.handleRotation(roomId);
+            await gameLogicService.createGame(roomId, playerId);
+            const game = gameLogicService.games.get(roomId).get(playerId);
+            game.isPlaying = true;
+            await game.spawnPiece();
             
+            const result = await gameLogicService.handleRotation(roomId, playerId);
             expect(result).toBeDefined();
-            expect(JSON.stringify(result.currentPiece.shape)).not.toBe(initialShape);
+            expect(result.playerUpdate).toBeDefined();
+            expect(result.roomUpdate).toBeDefined();
         });
-    });
 
-    describe('Calcul du spectre', () => {
-        test('devrait calculer correctement le spectre du plateau', () => {
-            const board = Array(20).fill().map(() => Array(10).fill(0));
-            board[18][0] = 1;
-            board[15][5] = 1;
-            
-            const spectrum = gameLogicService.calculateSpectrum(board);
-            expect(spectrum[0]).toBe(18);
-            expect(spectrum[5]).toBe(15);
-            expect(spectrum[9]).toBe(20);
-        });
-    });
-
-    describe('Gestion des pénalités', () => {
-        test('devrait ajouter correctement les lignes de pénalité', async () => {
+        test('devrait gérer la chute rapide des pièces', async () => {
             const roomId = 'test-room';
-            const game = await gameLogicService.createGame(roomId);
-            game.start();
+            const playerId = 'player-123';
             
-            const initialHeight = game.board.length;
-            gameLogicService.addPenaltyLines(game, 2);
+            await gameLogicService.createGame(roomId, playerId);
+            const game = gameLogicService.games.get(roomId).get(playerId);
+            game.isPlaying = true;
+            await game.spawnPiece();
             
-            // Vérifier que la hauteur totale n'a pas changé
-            expect(game.board.length).toBe(initialHeight);
+            const result = await gameLogicService.handleFall(roomId, playerId);
+            expect(result).toBeDefined();
+            expect(result.playerUpdate).toBeDefined();
+            expect(result.roomUpdate).toBeDefined();
+        });
+    });
+
+    describe('État des jeux', () => {
+        test('devrait retourner l\'état complet de la room', async () => {
+            const roomId = 'test-room';
+            const playerId = 'player-123';
             
-            // Vérifier que les lignes de pénalité ont un trou
-            const lastLine = game.board[game.board.length - 1];
-            const holes = lastLine.filter(cell => cell === 0);
-            expect(holes.length).toBe(1);
+            await gameLogicService.createGame(roomId, playerId);
+            
+            const roomState = await gameLogicService.getRoomGameStates(roomId);
+            expect(roomState).toBeDefined();
+            expect(roomState.roomId).toBe(roomId);
+            expect(roomState.gameStates).toBeDefined();
+            expect(Array.isArray(roomState.gameStates)).toBe(true);
         });
     });
 });

@@ -74,6 +74,7 @@ describe('Player Class', () => {
             player.setLeader(true);
             player.setPlaying(true);
             player.updateScore(200);
+            player.setSocketId('socket123');
 
             const json = player.toJSON();
             
@@ -82,12 +83,15 @@ describe('Player Class', () => {
                 name: 'testPlayer',
                 score: 200,
                 isLeader: true,
-                isPlaying: true
+                isPlaying: true,
+                blocksPlaced: 0,
+                socketId: 'socket123'
             });
+        });
 
-            // Vérifions que les informations sensibles sont exclues
-            expect(json.socketId).toBeUndefined();
-            expect(json.roomId).toBeUndefined();
+        test('devrait inclure le nombre de blocs placés', () => {
+            expect(player.getBlocksPlaced()).toBe(0);
+            expect(player.toJSON().blocksPlaced).toBe(0);
         });
     });
 });
