@@ -5,227 +5,229 @@
     <div v-if="!isGameStarted" class="lobby-container">
       <!-- Back Navigation -->
       <div class="back-navigation">
-        <v-btn
-          icon
-          size="large"
-          @click="goHome"
-          class="back-btn"
-        >
+        <v-btn icon size="large" @click="goHome" class="back-btn">
           <v-icon>mdi-arrow-left</v-icon>
         </v-btn>
       </div>
-      
+
       <!-- Main Lobby Content -->
       <div class="lobby-content">
         <v-row justify="center">
           <v-col cols="12" md="8" lg="6">
-          <v-card class="lobby-card pa-8" outlined>
-            <v-card-title
-              class="text-h4 text-center mb-6"
-              style="color: var(--text-color)"
-            >
-              {{ roomId ? "Room: " + roomId : "Join or Create Room" }}
-            </v-card-title>
-
-            <!-- Player Name Display -->
-            <div v-if="!roomId" class="text-center mb-4">
-              <p
-                class="text-subtitle-1"
-                style="color: var(--text-color); opacity: 0.8"
+            <v-card class="lobby-card pa-8" outlined>
+              <v-card-title
+                class="text-h4 text-center mb-6"
+                style="color: var(--text-color)"
               >
-                Playing as: <strong>{{ pseudo }}</strong>
-              </p>
-              <p
-                class="text-caption"
-                style="color: var(--text-color); opacity: 0.6"
+                {{ roomId ? "Room: " + roomId : "Join or Create Room" }}
+              </v-card-title>
+
+              <!-- Player Name Display -->
+              <div v-if="!roomId" class="text-center mb-4">
+                <p
+                  class="text-subtitle-1"
+                  style="color: var(--text-color); opacity: 0.8"
+                >
+                  Playing as: <strong>{{ pseudo }}</strong>
+                </p>
+                <p
+                  class="text-caption"
+                  style="color: var(--text-color); opacity: 0.6"
+                >
+                  (Set from Home page)
+                </p>
+              </div>
+
+              <!-- Room Join/Create Section -->
+              <div v-if="!roomId" class="room-setup mb-8">
+                <div class="room-input-container mb-6">
+                  <v-text-field
+                    v-model="roomInput"
+                    label="Room ID (leave empty to create random room)"
+                    outlined
+                    class="custom-text-field"
+                    dense
+                    @keyup.enter="joinOrCreateRoom"
+                  />
+                </div>
+                <div class="d-flex flex-column mb-4 button-group">
+                  <v-btn
+                    class="room-action-btn"
+                    @click="joinOrCreateRoom"
+                    :disabled="!roomInput"
+                    block
+                  >
+                    Join Room
+                  </v-btn>
+                  <v-btn class="room-action-btn" @click="createNewRoom" block>
+                    Create New Room
+                  </v-btn>
+                  <v-btn
+                    class="room-action-btn"
+                    @click="fetchActiveRooms"
+                    block
+                  >
+                    Refresh Room List
+                  </v-btn>
+                </div>
+              </div>
+
+              <!-- Active Rooms List -->
+              <div
+                v-if="!roomId && activeRooms.length > 0"
+                class="active-rooms mb-6"
               >
-                (Set from Home page)
-              </p>
-            </div>
+                <div class="section-header mb-4">
+                  <v-icon class="section-icon mr-2">mdi-home-group</v-icon>
+                  <h4 class="section-title">
+                    Active Rooms ({{ activeRooms.length }})
+                  </h4>
+                </div>
 
-            <!-- Room Join/Create Section -->
-            <div v-if="!roomId" class="room-setup mb-8">
-              <div class="room-input-container mb-6">
-                <v-text-field
-                  v-model="roomInput"
-                  label="Room ID (leave empty to create random room)"
-                  outlined
-                  class="custom-text-field"
-                  dense
-                  @keyup.enter="joinOrCreateRoom"
-                />
-              </div>
-              <div class="d-flex flex-column mb-4 button-group">
-                <v-btn
-                  class="room-action-btn"
-                  @click="joinOrCreateRoom"
-                  :disabled="!roomInput"
-                  block
-                >
-                  Join Room
-                </v-btn>
-                <v-btn class="room-action-btn" @click="createNewRoom" block>
-                  Create New Room
-                </v-btn>
-                <v-btn class="room-action-btn" @click="fetchActiveRooms" block>
-                  Refresh Room List
-                </v-btn>
-              </div>
-            </div>
-
-            <!-- Active Rooms List -->
-            <div
-              v-if="!roomId && activeRooms.length > 0"
-              class="active-rooms mb-6"
-            >
-              <div class="section-header mb-4">
-                <v-icon class="section-icon mr-2">mdi-home-group</v-icon>
-                <h4 class="section-title">
-                  Active Rooms ({{ activeRooms.length }})
-                </h4>
-              </div>
-              
-              <div class="rooms-grid">
-                <v-card
-                  v-for="room in activeRooms"
-                  :key="room.roomId"
-                  class="room-card"
-                  @click="joinSpecificRoom(room.roomId)"
-                  :class="{
-                    'room-disabled': room.isPlaying || room.playerCount >= room.maxPlayers
-                  }"
-                  outlined
-                >
-                  <v-card-text class="room-content">
-                    <!-- Room Header -->
-                    <div class="room-header">
-                      <div class="room-info">
-                        <v-icon class="room-icon mr-2">mdi-door-open</v-icon>
-                        <span class="room-name">{{ room.roomId }}</span>
+                <div class="rooms-grid">
+                  <v-card
+                    v-for="room in activeRooms"
+                    :key="room.roomId"
+                    class="room-card"
+                    @click="joinSpecificRoom(room.roomId)"
+                    :class="{
+                      'room-disabled':
+                        room.isPlaying || room.playerCount >= room.maxPlayers,
+                    }"
+                    outlined
+                  >
+                    <v-card-text class="room-content">
+                      <!-- Room Header -->
+                      <div class="room-header">
+                        <div class="room-info">
+                          <v-icon class="room-icon mr-2">mdi-door-open</v-icon>
+                          <span class="room-name">{{ room.roomId }}</span>
+                        </div>
+                        <v-chip
+                          :color="
+                            room.isPlaying
+                              ? 'error'
+                              : room.playerCount >= room.maxPlayers
+                                ? 'warning'
+                                : 'secondary'
+                          "
+                          size="small"
+                          class="status-chip"
+                        >
+                          {{ room.playerCount }}/{{ room.maxPlayers }}
+                        </v-chip>
                       </div>
-                      <v-chip
-                        :color="
-                          room.isPlaying
-                            ? 'error'
-                            : room.playerCount >= room.maxPlayers
-                              ? 'warning'
-                              : 'secondary'
-                        "
-                        size="small"
-                        class="status-chip"
-                      >
-                        {{ room.playerCount }}/{{ room.maxPlayers }}
-                      </v-chip>
-                    </div>
-                    
-                    <!-- Room Status -->
-                    <div class="room-status">
-                      <v-icon 
-                        class="status-icon mr-1"
-                        :color="
-                          room.isPlaying
-                            ? 'error'
-                            : room.playerCount >= room.maxPlayers
-                              ? 'warning'
-                              : 'success'
-                        "
-                      >
-                        {{
-                          room.isPlaying
-                            ? 'mdi-play-circle'
-                            : room.playerCount >= room.maxPlayers
-                              ? 'mdi-lock'
-                              : 'mdi-clock-time-four'
-                        }}
-                      </v-icon>
-                      <span class="status-text">
-                        {{
-                          room.isPlaying
-                            ? "Playing"
-                            : room.playerCount >= room.maxPlayers
-                              ? "Full"
-                              : "Waiting"
-                        }}
-                      </span>
-                    </div>
-                    
-                    <!-- Players List -->
-                    <div class="room-players">
-                      <v-icon class="players-icon mr-1">mdi-account-multiple</v-icon>
-                      <span class="players-list">
-                        {{ room.players.map((p) => p.name).join(", ") }}
-                      </span>
-                    </div>
-                  </v-card-text>
-                </v-card>
-              </div>
-            </div>
 
-            <!-- No Active Rooms Message -->
-            <div
-              v-if="!roomId && activeRooms.length === 0 && roomsLoaded"
-              class="no-rooms mb-6"
-            >
-              <p
-                class="text-center"
-                style="color: var(--text-color); opacity: 0.7"
+                      <!-- Room Status -->
+                      <div class="room-status">
+                        <v-icon
+                          class="status-icon mr-1"
+                          :color="
+                            room.isPlaying
+                              ? 'error'
+                              : room.playerCount >= room.maxPlayers
+                                ? 'warning'
+                                : 'success'
+                          "
+                        >
+                          {{
+                            room.isPlaying
+                              ? "mdi-play-circle"
+                              : room.playerCount >= room.maxPlayers
+                                ? "mdi-lock"
+                                : "mdi-clock-time-four"
+                          }}
+                        </v-icon>
+                        <span class="status-text">
+                          {{
+                            room.isPlaying
+                              ? "Playing"
+                              : room.playerCount >= room.maxPlayers
+                                ? "Full"
+                                : "Waiting"
+                          }}
+                        </span>
+                      </div>
+
+                      <!-- Players List -->
+                      <div class="room-players">
+                        <v-icon class="players-icon mr-1"
+                          >mdi-account-multiple</v-icon
+                        >
+                        <span class="players-list">
+                          {{ room.players.map((p) => p.name).join(", ") }}
+                        </span>
+                      </div>
+                    </v-card-text>
+                  </v-card>
+                </div>
+              </div>
+
+              <!-- No Active Rooms Message -->
+              <div
+                v-if="!roomId && activeRooms.length === 0 && roomsLoaded"
+                class="no-rooms mb-6"
               >
-                No active rooms found. Create a new room to start playing!
-              </p>
-            </div>
-
-            <!-- Players List -->
-            <div v-if="roomId" class="players-section">
-              <h3 class="text-h5 mb-4" style="color: var(--text-color)">
-                Players ({{ players.length }}/{{ maxPlayers }})
-              </h3>
-              <v-list class="players-list">
-                <v-list-item
-                  v-for="player in players"
-                  :key="player.name"
-                  class="player-item"
+                <p
+                  class="text-center"
+                  style="color: var(--text-color); opacity: 0.7"
                 >
-                  <template v-slot:prepend>
-                    <v-icon class="player-list-icon">mdi-account</v-icon>
-                  </template>
-                  
-                  <v-list-item-title class="player-name">
-                    {{ player.name }}
-                    <v-icon
-                      v-if="player.isLeader"
-                      class="leader-crown ml-2"
-                      color="warning"
-                    >
-                      mdi-crown
-                    </v-icon>
-                  </v-list-item-title>
-                </v-list-item>
-              </v-list>
-
-              <!-- Game Controls -->
-              <div class="game-controls mt-6">
-                <v-btn
-                  v-if="isLeader && players.length >= 2"
-                  class="start-btn"
-                  @click="startMultiplayerGame"
-                  variant="elevated"
-                  block
-                >
-                  Start Game
-                </v-btn>
-                <v-btn
-                  class="leave-btn mt-3"
-                  @click="leaveRoomHandler"
-                  variant="outlined"
-                  block
-                >
-                  Leave Room
-                </v-btn>
+                  No active rooms found. Create a new room to start playing!
+                </p>
               </div>
-            </div>
-          </v-card>
-        </v-col>
-      </v-row>
+
+              <!-- Players List -->
+              <div v-if="roomId" class="players-section">
+                <h3 class="text-h5 mb-4" style="color: var(--text-color)">
+                  Players ({{ players.length }}/{{ maxPlayers }})
+                </h3>
+                <v-list class="players-list">
+                  <v-list-item
+                    v-for="player in players"
+                    :key="player.name"
+                    class="player-item"
+                  >
+                    <template v-slot:prepend>
+                      <v-icon class="player-list-icon">mdi-account</v-icon>
+                    </template>
+
+                    <v-list-item-title class="player-name">
+                      {{ player.name }}
+                      <v-icon
+                        v-if="player.isLeader"
+                        class="leader-crown ml-2"
+                        color="warning"
+                      >
+                        mdi-crown
+                      </v-icon>
+                    </v-list-item-title>
+                  </v-list-item>
+                </v-list>
+
+                <!-- Game Controls -->
+                <div class="game-controls mt-6">
+                  <v-btn
+                    v-if="isLeader && players.length >= 2"
+                    class="start-btn"
+                    @click="startMultiplayerGame"
+                    variant="elevated"
+                    block
+                  >
+                    Start Game
+                  </v-btn>
+                  <v-btn
+                    class="leave-btn mt-3"
+                    @click="leaveRoomHandler"
+                    variant="outlined"
+                    block
+                  >
+                    Leave Room
+                  </v-btn>
+                </div>
+              </div>
+            </v-card>
+          </v-col>
+        </v-row>
       </div>
     </div>
 
@@ -333,6 +335,24 @@
         </v-card-actions>
       </v-card>
     </v-dialog>
+
+    <!-- Victory Modal -->
+    <v-dialog v-model="showVictoryModal" max-width="500" persistent>
+      <v-card class="victory-card">
+        <v-card-title class="text-h6 text-center victory-title">
+          <v-icon class="victory-crown mr-2" color="warning">mdi-crown</v-icon>
+          {{ victoryMessage }}
+          <v-icon class="victory-crown ml-2" color="warning">mdi-crown</v-icon>
+        </v-card-title>
+        <v-card-text class="text-center victory-text font-weight-bold">
+          {{ victoryReason === 'Opponent disconnected' ? 'Your opponent disconnected. You win by forfeit!' : 'Congratulations! What would you like to do next?' }}
+        </v-card-text>
+        <v-card-actions class="justify-center">
+          <v-btn @click="goToLobby"> Back to Lobby </v-btn>
+          <v-btn @click="goHome" variant="outlined">Home</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
@@ -365,6 +385,7 @@ const {
   onPlayerLeft,
   onPlayerDisconnected,
   onMultiplayerUpdate,
+  onGameOver,
   socket,
 } = useSocket();
 
@@ -383,7 +404,10 @@ const roomsLoaded = ref(false);
 const isGameStarted = ref(false);
 const clearedLinesInfo = ref(null);
 const showGameOverModal = ref(false);
+const showVictoryModal = ref(false);
 const gameOverMessage = ref("");
+const victoryMessage = ref("");
+const victoryReason = ref("");
 
 // Computed properties for multiplayer state
 const myGameState = computed(() => multiplayerState.value.myGameState);
@@ -391,17 +415,16 @@ const opponents = computed(() => multiplayerState.value.opponents);
 const score = computed(() => myGameState.value.score);
 const nextPiece = computed(() => myGameState.value.nextPiece);
 
-
 // Opponent data - get first opponent with complete game state
 const opponentData = computed(() => {
   const firstOpponent = opponents.value[0];
   if (!firstOpponent) return null;
-  
+
   // Find the full game state for this opponent
   const opponentGameState = multiplayerState.value.roomGameStates.find(
-    gameState => gameState.playerId === firstOpponent.playerId
+    (gameState) => gameState.playerId === firstOpponent.playerId,
   );
-  
+
   return {
     name: firstOpponent.playerName,
     board: firstOpponent.board,
@@ -460,9 +483,12 @@ const createNewRoom = async () => {
 
 const joinSpecificRoom = async (roomIdToJoin) => {
   try {
+    console.log("🔄 Attempting to join room:", roomIdToJoin, "as player:", pseudo);
     await connectToRoom(roomIdToJoin, pseudo);
     roomId.value = roomIdToJoin;
     console.log("✅ Joined specific room:", roomIdToJoin);
+    console.log("📊 Current players state:", players.value);
+    console.log("👑 Is leader:", isLeader.value);
   } catch (e) {
     if (e.message.includes("already taken")) {
       alert(
@@ -475,8 +501,9 @@ const joinSpecificRoom = async (roomIdToJoin) => {
 };
 
 const leaveRoomHandler = () => {
+  console.log("🚪 Leaving room:", roomId.value);
   leaveRoom();
-  disconnect();
+  // Don't disconnect the socket - just leave the room
   resetGameState();
   resetMultiplayerState();
   roomId.value = null;
@@ -484,6 +511,7 @@ const leaveRoomHandler = () => {
   isGameStarted.value = false;
   isLeader.value = false;
   currentPlayer.value = null;
+  console.log("🧹 Room state cleared");
 };
 
 const startMultiplayerGame = () => {
@@ -498,13 +526,23 @@ const leaveGame = () => {
 
 const goToLobby = () => {
   showGameOverModal.value = false;
+  showVictoryModal.value = false;
   isGameStarted.value = false;
   resetGameState();
   resetMultiplayerState();
 };
 
 const goHome = () => {
-  leaveRoomHandler();
+  console.log("🏠 Going home");
+  leaveRoom();
+  disconnect(); // Only disconnect when actually going home
+  resetGameState();
+  resetMultiplayerState();
+  roomId.value = null;
+  players.value = [];
+  isGameStarted.value = false;
+  isLeader.value = false;
+  currentPlayer.value = null;
   router.push("/");
 };
 
@@ -536,10 +574,13 @@ const handleKeyPress = (event) => {
 const setupSocketHandlers = () => {
   // Room updates
   onRoomUpdate((data) => {
-    console.log("🏠 Room update:", data);
+    console.log("🏠 Room update received:", data);
+    console.log("📊 Before update - players:", players.value.length, "isLeader:", isLeader.value);
     players.value = data.players;
     currentPlayer.value = data.players.find((p) => p.name === pseudo);
     isLeader.value = currentPlayer.value?.isLeader || false;
+    console.log("📊 After update - players:", players.value.length, "isLeader:", isLeader.value);
+    console.log("👤 Current player found:", currentPlayer.value);
   });
 
   // Game started
@@ -565,22 +606,19 @@ const setupSocketHandlers = () => {
       }, 1000);
     }
 
-    // Handle game over
-    if (gameState.gameState.gameOver) {
-      gameOverMessage.value = "Game Over";
-      showGameOverModal.value = true;
-    }
+    // Game over is now handled by the dedicated game-over event
+    // The gameState.gameState.gameOver is still useful for local state tracking
   });
 
   // Multiplayer room updates (all players' game states)
   onMultiplayerUpdate((roomData) => {
     console.log("🎮 Multiplayer room update:", roomData);
-    
+
     // Check if any player has game over to show appropriate message
     const anyPlayerGameOver = roomData.gameStates?.some(
-      (gameState) => gameState.gameState.gameOver
+      (gameState) => gameState.gameState.gameOver,
     );
-    
+
     if (anyPlayerGameOver && myGameState.value.gameOver) {
       gameOverMessage.value = "Game Over";
       showGameOverModal.value = true;
@@ -592,6 +630,19 @@ const setupSocketHandlers = () => {
     console.log("👋 Player disconnected:", data);
     if (isGameStarted.value) {
       gameOverMessage.value = "Opponent disconnected!";
+      showGameOverModal.value = true;
+    }
+  });
+
+  // Game over (victory/defeat)
+  onGameOver((data) => {
+    console.log("🎯 Game over received:", data);
+    if (data.type === "victory") {
+      victoryMessage.value = data.message;
+      victoryReason.value = data.reason || "";
+      showVictoryModal.value = true;
+    } else if (data.type === "defeat") {
+      gameOverMessage.value = data.message;
       showGameOverModal.value = true;
     }
   });
@@ -1005,6 +1056,65 @@ onBeforeUnmount(() => {
 .game-over-title,
 .game-over-text {
   color: var(--text-color);
+}
+
+.victory-card {
+  background-color: var(--primary-plain);
+  border: 4px solid white;
+  border-radius: 16px !important;
+  color: white;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+  position: relative;
+  overflow: hidden;
+}
+
+.victory-card::before {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent,
+    rgba(255, 215, 0, 0.2),
+    transparent
+  );
+  animation: victory-shine 2s infinite;
+}
+
+@keyframes victory-shine {
+  0% {
+    transform: translateX(-100%) translateY(-100%) rotate(45deg);
+  }
+  100% {
+    transform: translateX(100%) translateY(100%) rotate(45deg);
+  }
+}
+
+.victory-title {
+  color: var(--text-color) !important;
+  font-weight: bold;
+}
+
+.victory-text {
+  color: var(--text-color) !important;
+}
+
+.victory-crown {
+  font-size: 1.5rem !important;
+  animation: crown-bounce 1s infinite alternate;
+  color: #ffd700 !important;
+}
+
+@keyframes crown-bounce {
+  0% {
+    transform: translateY(0px);
+  }
+  100% {
+    transform: translateY(-5px);
+  }
 }
 
 .score-display {

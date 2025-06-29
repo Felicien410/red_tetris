@@ -216,6 +216,10 @@ function resetMultiplayerState() {
   };
 }
 
+function onGameOver(callback) {
+  socket.on("game-over", callback);
+}
+
 function removeAllListeners() {
   socket.off("connect");
   socket.off("disconnect");
@@ -227,6 +231,7 @@ function removeAllListeners() {
   socket.off("player-left");
   socket.off("player-disconnected");
   socket.off("multiplayer-update");
+  socket.off("game-over");
   listenersAttached = false;
 }
 
@@ -265,6 +270,7 @@ export function useSocket() {
     onPlayerLeft,
     onPlayerDisconnected,
     onMultiplayerUpdate,
+    onGameOver,
     resetMultiplayerState,
     
     socket, // Export socket for direct access in components

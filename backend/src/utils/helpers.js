@@ -167,6 +167,11 @@ function setupSocketHandlers(socket, server) {
           throw new Error(`Player name "${pseudo}" is already taken in this room`);
         }
         
+        // If the existing player is disconnected, we can safely replace them
+        if (existingPlayer.socketId && !server.connectedSockets.has(existingPlayer.socketId)) {
+          console.log(`Existing player "${pseudo}" is disconnected, replacing with new connection`);
+        }
+        
         // This is either a reconnection or the first socket connection for this player
         console.log(`Updating existing player "${pseudo}" with new socket ID`);
         const player = new Player(pseudo, room);
@@ -197,6 +202,9 @@ function setupSocketHandlers(socket, server) {
 
       socket.join(room);
       socket.roomId = room;
+      
+      // Ensure this socket is tracked as connected
+      server.connectedSockets.add(socket.id);
 
       server.io.to(room).emit("room-update", {
         room,
@@ -204,11 +212,22 @@ function setupSocketHandlers(socket, server) {
         isPlaying: roomData.isPlaying === "true",
       });
 
+      // Send individual confirmation to the joining player
       socket.emit("joined-room", {
         room,
         playerId: socket.id,
         players,
       });
+      
+      // Also send a direct room update to the joining player to ensure they get the current state
+      socket.emit("room-update", {
+        room,
+        players,
+        isPlaying: roomData.isPlaying === "true",
+      });
+      
+      console.log(`✅ Player ${pseudo} successfully joined room ${room}. Room now has ${players.length} players.`);
+      console.log(`📤 Room update sent to all players in room ${room}:`, players.map(p => p.name));
     } catch (error) {
       console.error("Error initializing:", error);
       socket.emit("error", { message: error.message });
@@ -260,12 +279,15 @@ function setupSocketHandlers(socket, server) {
       }
 
       // 8. Initialisation des jeux pour chaque joueur
+      console.log(`🎮 Starting game for ${players.length} players in room ${roomId}`);
       for (const player of players) {
+        console.log(`🎯 Creating game for player ${player.name} (${player.socketId})`);
         const playerGameState = await server.gameLogicService.createGame(
           roomId,
           player.socketId,
         );
 
+        console.log(`📤 Sending game-started to ${player.name} (${player.socketId})`);
         server.io.to(player.socketId).emit("game-started", playerGameState);
       }
 
@@ -346,6 +368,17 @@ function setupSocketHandlers(socket, server) {
     }
   });
 
+  socket.on("leave-room", async (data) => {
+    console.log("Player leaving room:", socket.id, data);
+    
+    if (socket.roomId) {
+      stopGameLoop(socket.roomId, server);
+      await cleanupRoom(socket.roomId, socket.id, server);
+      socket.leave(socket.roomId);
+      socket.roomId = null;
+    }
+  });
+
   socket.on("disconnect", async () => {
     console.log("Disconnection:", socket.id);
     server.connectedSockets.delete(socket.id);
@@ -382,7 +415,7 @@ function startPlayerGameLoop(roomId, playerId, server) {
       }
       if (gameInstance.gameOver) {
         stopGameLoop(roomId, playerId, server);
-        await resetRoom(roomId, server, server.gameLogicService.games);
+        await handleGameOver(roomId, playerId, server);
         return;
       }
     } catch (error) {
@@ -398,6 +431,50 @@ function startPlayerGameLoop(roomId, playerId, server) {
   };
 
   runLoop();
+}
+
+async function handleGameOver(roomId, playerId, server) {
+  try {
+    console.log(`🎮 Game over for player ${playerId} in room ${roomId}`);
+    
+    // Get room data
+    const roomKey = `${REDIS_KEYS.GAME_PREFIX}${roomId}`;
+    const roomData = await server.redisClient.hGetAll(roomKey);
+    const players = JSON.parse(roomData.players || "[]");
+    
+    // Stop all game loops for this room
+    for (const player of players) {
+      stopGameLoop(roomId, player.socketId, server);
+    }
+    
+    // Determine winner and loser
+    const loser = players.find(p => p.socketId === playerId);
+    const winner = players.find(p => p.socketId !== playerId);
+    
+    if (winner && loser) {
+      // Send game over to loser
+      server.io.to(playerId).emit("game-over", {
+        type: "defeat",
+        message: "Game Over",
+        opponent: winner.name
+      });
+      
+      // Send victory to winner
+      server.io.to(winner.socketId).emit("game-over", {
+        type: "victory",
+        message: "You Win!",
+        opponent: loser.name
+      });
+      
+      console.log(`🏆 ${winner.name} wins against ${loser.name} in room ${roomId}`);
+    }
+    
+    // Reset room state
+    await resetRoom(roomId, server, server.gameLogicService.games);
+    
+  } catch (error) {
+    console.error("Error handling game over:", error);
+  }
 }
 
 function stopGameLoop(roomId, playerId, server) {
@@ -424,26 +501,78 @@ async function cleanupRoom(roomId, socketId, server) {
     if (roomData.players) {
       console.log("Cleaning room:", roomId);
       let players = JSON.parse(roomData.players);
-      players = players.filter((p) => p.id !== socketId);
+      const disconnectedPlayer = players.find((p) => p.socketId === socketId);
+      const remainingPlayers = players.filter((p) => p.socketId !== socketId);
 
-      if (players.length === 0) {
+      if (remainingPlayers.length === 0) {
+        // No players left, delete room
         await server.redisClient.del(roomKey);
-        stopGameLoop(roomId, socketId, server); // Ajout de socketId
-      } else {
-        if (!players.some((p) => p.isLeader)) {
-          players[0].isLeader = true;
+        stopGameLoop(roomId, socketId, server);
+      } else if (roomData.isPlaying === "true" && remainingPlayers.length === 1) {
+        // Game was in progress and only one player remains - they win!
+        const winner = remainingPlayers[0];
+        
+        console.log(`🏆 ${winner.name} wins by forfeit against ${disconnectedPlayer?.name} in room ${roomId}`);
+        
+        // Stop all game loops
+        for (const player of players) {
+          stopGameLoop(roomId, player.socketId, server);
         }
+        
+        // Send victory to remaining player
+        server.io.to(winner.socketId).emit("game-over", {
+          type: "victory",
+          message: "You Win!",
+          reason: "Opponent disconnected",
+          opponent: disconnectedPlayer?.name
+        });
+        
+        // Make sure the remaining player becomes leader
+        if (remainingPlayers.length > 0) {
+          remainingPlayers[0].isLeader = true;
+          console.log(`👑 ${remainingPlayers[0].name} is now the leader after game forfeit`);
+        }
+        
+        // Reset room state to lobby
+        await server.redisClient.hSet(roomKey, {
+          players: JSON.stringify(remainingPlayers),
+          isPlaying: "false"
+        });
+        
+        // Update room state for remaining player
+        server.io.to(roomId).emit("room-update", {
+          room: roomId,
+          players: remainingPlayers,
+          isPlaying: false,
+        });
+        
+      } else {
+        // Normal lobby disconnection - just remove player
+        // Check if the disconnected player was the leader
+        const wasLeader = disconnectedPlayer?.isLeader;
+        
+        // If the leader left and there are remaining players, make the first one leader
+        if (wasLeader && remainingPlayers.length > 0) {
+          console.log(`👑 Leader ${disconnectedPlayer.name} left room ${roomId}, promoting ${remainingPlayers[0].name} to leader`);
+          remainingPlayers[0].isLeader = true;
+        } else if (!remainingPlayers.some((p) => p.isLeader) && remainingPlayers.length > 0) {
+          // Fallback: if somehow no leader exists, make the first player leader
+          remainingPlayers[0].isLeader = true;
+        }
+        
         await server.redisClient.hSet(
           roomKey,
           "players",
-          JSON.stringify(players),
+          JSON.stringify(remainingPlayers),
         );
+        
         server.io.to(roomId).emit("room-update", {
           room: roomId,
-          players,
+          players: remainingPlayers,
           isPlaying: roomData.isPlaying === "true",
         });
-        stopGameLoop(roomId, socketId, server); // Ajout de socketId
+        
+        stopGameLoop(roomId, socketId, server);
       }
     }
   } catch (error) {

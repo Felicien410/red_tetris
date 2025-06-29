@@ -35,7 +35,7 @@ class TetrisServer {
     // Services et connexions
     const redisUrl = process.env.REDIS_URL || "redis://localhost:6379";
     this.redisClient = createClient({ url: redisUrl });
-    this.connectedSockets = new Map();
+    this.connectedSockets = new Set();
     this.LobbyService = new LobbyService(this.redisClient);
     this.gameLogicService = new GameLogicService(this.redisClient, this);
     this.gameIntervals = new Map();
@@ -57,7 +57,7 @@ class TetrisServer {
     // Setup des sockets
     this.io.on("connection", (socket) => {
       console.log("New connection:", socket.id);
-      this.connectedSockets.set(socket.id, socket);
+      this.connectedSockets.add(socket.id);
       setupSocketHandlers(socket, this);
     });
 
