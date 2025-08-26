@@ -24,6 +24,8 @@ describe('GameLogicService', () => {
     let gameLogicService;
 
     beforeEach(() => {
+        // Mock console.log to prevent excessive output during tests
+        console.log = jest.fn();
         gameLogicService = new GameLogicService(mockRedisClient, mockServer);
     });
 
@@ -32,12 +34,13 @@ describe('GameLogicService', () => {
             const roomId = 'test-room';
             const playerId = 'player-123';
             
-            const gameState = await gameLogicService.createGame(roomId, playerId);
+            const result = await gameLogicService.createGame(roomId, playerId);
             
-            expect(gameState).toBeDefined();
-            expect(gameState.roomId).toBe(roomId);
-            expect(gameState.gameState).toBeDefined();
-            expect(gameState.gameState.board).toBeDefined();
+            expect(result).toBeDefined();
+            expect(result.gameState).toBeDefined();
+            expect(result.gameState.board).toBeDefined();
+            expect(result.players).toBeDefined();
+            expect(typeof result.isPlaying).toBe('boolean');
         });
 
         test('devrait stocker le jeu dans la carte des jeux', async () => {
