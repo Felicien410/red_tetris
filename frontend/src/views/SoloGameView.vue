@@ -59,23 +59,22 @@
           </v-card-title>
           <v-card-text class="d-flex align-center justify-center">
             <div class="next-piece-display">
-              <table v-if="nextPiece">
-                <tbody>
-                  <tr
-                    v-for="(row, rowIndex) in PIECE_SHAPES[nextPiece.type]"
-                    :key="rowIndex"
-                  >
-                    <td
-                      v-for="(cell, cellIndex) in row"
-                      :key="cellIndex"
-                      :class="[
-                        'next-cell',
-                        cell ? 'filled filled-' + nextPiece.type : 'empty',
-                      ]"
-                    ></td>
-                  </tr>
-                </tbody>
-              </table>
+              <div v-if="nextPiece" class="next-piece-grid">
+                <div
+                  v-for="(row, rowIndex) in PIECE_SHAPES[nextPiece.type]"
+                  :key="rowIndex"
+                  class="next-piece-row"
+                >
+                  <div
+                    v-for="(cell, cellIndex) in row"
+                    :key="cellIndex"
+                    :class="[
+                      'next-cell',
+                      cell ? 'filled filled-' + nextPiece.type : 'empty',
+                    ]"
+                  ></div>
+                </div>
+              </div>
               <span v-else>?</span>
             </div>
           </v-card-text>
@@ -303,8 +302,15 @@ const goHome = () => {
   align-items: center;
   justify-content: center;
 }
-.next-piece-display table {
-  border-collapse: collapse;
+.next-piece-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.next-piece-row {
+  display: flex;
+  gap: 1px;
 }
 
 .next-cell {
